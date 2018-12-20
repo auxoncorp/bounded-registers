@@ -1,108 +1,147 @@
-#![feature(const_fn)]
 #![no_std]
+#![feature(const_fn)]
+
 extern crate type_bounds;
 extern crate typenum;
 
-use core::ops::{BitAnd, BitOr, Not};
+use core::ops::{BitAnd, BitOr, Not, Shl, Shr};
 
-use typenum::{IsGreaterOrEqual, IsLessOrEqual, Unsigned, B1, U0};
+use typenum::consts::{B1, U0, U255};
+use typenum::{IsGreaterOrEqual, IsLessOrEqual, Unsigned};
 
 use type_bounds::num::BoundedU32;
 
-struct Field<M, O, V> {
+pub struct Field<
+    M: Unsigned,
+    O: Unsigned,
+    V: Unsigned,
+    L: Unsigned,
+    U: Unsigned,
+> where
+    V: IsLessOrEqual<U, Output = B1>,
+    V: IsGreaterOrEqual<L, Output = B1>,
+{
     mask: M,
     offset: O,
-    val: V,
+    val: BoundedU32<V, L, U>,
 }
 
-impl<M: Unsigned, O: Unsigned, L: Unsigned, U: Unsigned>
-    Field<BoundedU32<M, L, U>, BoundedU32<O, L, U>, BoundedU32<U0, L, U>>
+impl<M: Unsigned, O: Unsigned, V: Unsigned, L: Unsigned, U: Unsigned>
+    Field<M, O, V, L, U>
 where
-    U0: IsLessOrEqual<U, Output = B1>,
-    U0: IsGreaterOrEqual<L, Output = B1>,
-    M: IsLessOrEqual<U, Output = B1>,
-    M: IsGreaterOrEqual<L, Output = B1>,
-    O: IsLessOrEqual<U, Output = B1>,
-    O: IsGreaterOrEqual<L, Output = B1>,
+    V: IsLessOrEqual<U, Output = B1>,
+    V: IsGreaterOrEqual<L, Output = B1>,
 {
-    pub const fn new(
-        width: BoundedU32<M, L, U>,
-        offset: BoundedU32<O, L, U>,
-    ) -> Self {
+    pub const fn new(mask: M, offset: O) -> Self {
         Field {
-            mask: (((1 << (width - 1)) * 2) - 1) << offset,
+            mask: mask,
             offset: offset,
             val: BoundedU32::zero(),
         }
     }
-}
 
-impl<N: Unsigned, M: Unsigned, O: Unsigned, L: Unsigned, U: Unsigned>
-    Field<BoundedU32<M, L, U>, BoundedU32<O, L, U>, BoundedU32<N, L, U>>
-where
-    U0: IsLessOrEqual<U, Output = B1>,
-    U0: IsGreaterOrEqual<L, Output = B1>,
-    M: IsLessOrEqual<U, Output = B1>,
-    M: IsGreaterOrEqual<L, Output = B1>,
-    O: IsLessOrEqual<U, Output = B1>,
-    O: IsGreaterOrEqual<L, Output = B1>,
-    N: IsLessOrEqual<U, Output = B1>,
-    N: IsGreaterOrEqual<L, Output = B1>,
-{
-    fn set<P: Unsigned, Q: Unsigned>(
+    pub fn modify<N: Unsigned>(
         self,
-        val: BoundedU32<P, L, U>,
-    ) -> Field<BoundedU32<M, L, U>, BoundedU32<O, L, U>, BoundedU32<Q, L, U>>
+        val: BoundedU32<N, L, U>,
+    ) -> Field<M, O, N, L, U>
     where
-        P: IsLessOrEqual<U, Output = B1>,
-        P: IsGreaterOrEqual<L, Output = B1>,
-        Q: IsLessOrEqual<U, Output = B1>,
-        Q: IsGreaterOrEqual<L, Output = B1>,
-
-        BoundedU32<M, L, U>: Not,
-
-        BoundedU32<N, L, U>: BitAnd<<BoundedU32<M, L, U> as Not>::Output>,
-
-        <BoundedU32<N, L, U> as BitAnd<<BoundedU32<M, L, U> as Not
-            >::Output>>::Output: BitOr<BoundedU32<P, L, U>>,
-        Bounded<Q, L, U>: <Bounded<Q, L, U> = BoundedU32<<BoundedU32<N, L, U> as BitAnd<<BoundedU32<M, L, U> as Not>::Output>>::Output as BitOr<BoundedU32<P, L, U>>>::Output>,
+        N: IsLessOrEqual<U, Output = B1>,
+        N: IsGreaterOrEqual<L, Output = B1>,
     {
         Field {
             mask: self.mask,
             offset: self.offset,
-            val: (self.val & !self.mask) | val,
+            val: val,
         }
+    }
+}
+
+pub trait UnsignedLike: Copy + Eq + Not + BitAnd + BitOr + Shl + Shr {}
+
+impl<N: Unsigned, L: Unsigned, U: Unsigned> UnsignedLike for BoundedU32<N, L, U>
+where
+    N: IsLessOrEqual<U, Output = B1>,
+    N: IsGreaterOrEqual<L, Output = B1>,
+
+    N: Not,
+    <N as Not>::Output: Unsigned,
+    <N as Not>::Output: IsLessOrEqual<U, Output = B1>,
+    <N as Not>::Output: IsGreaterOrEqual<L, Output = B1>,
+
+    N: BitAnd,
+    <N as BitAnd>::Output: Unsigned,
+    <N as BitAnd>::Output: IsLessOrEqual<U, Output = B1>,
+    <N as BitAnd>::Output: IsGreaterOrEqual<L, Output = B1>,
+
+    N: BitOr,
+    <N as BitOr>::Output: Unsigned,
+    <N as BitOr>::Output: IsLessOrEqual<U, Output = B1>,
+    <N as BitOr>::Output: IsGreaterOrEqual<L, Output = B1>,
+
+    N: Shl,
+    <N as Shl>::Output: Unsigned,
+    <N as Shl>::Output: IsLessOrEqual<U, Output = B1>,
+    <N as Shl>::Output: IsGreaterOrEqual<L, Output = B1>,
+
+    N: Shr,
+    <N as Shr>::Output: Unsigned,
+    <N as Shr>::Output: IsLessOrEqual<U, Output = B1>,
+    <N as Shr>::Output: IsGreaterOrEqual<L, Output = B1>,
+{
+}
+
+pub struct Register<N: Unsigned>(BoundedU32<N, U0, U255>)
+where
+    N: IsLessOrEqual<U255, Output = B1>,
+    N: IsGreaterOrEqual<U0, Output = B1>;
+
+impl<N: Unsigned + UnsignedLike> Register<N>
+where
+    N: IsLessOrEqual<U255, Output = B1>,
+    N: IsGreaterOrEqual<U0, Output = B1>,
+{
+    pub fn clear(self) -> BoundedU32<U0, U0, U255> {
+        BoundedU32::zero()
+    }
+
+    pub fn set(self) -> BoundedU32<U255, U0, U255> {
+        BoundedU32::new(255)
+    }
+
+    fn modify<
+        M: Unsigned + UnsignedLike,
+        O: Unsigned + UnsignedLike,
+        V: Unsigned + UnsignedLike,
+        L: Unsigned,
+        U: Unsigned,
+    >(
+        self,
+        field: Field<M, O, V, L, U>,
+    ) -> Self
+    where
+        V: IsLessOrEqual<U, Output = B1>,
+        V: IsGreaterOrEqual<L, Output = B1>,
+    {
+        (self.0 & !field.mask) | (field.val << field.offset)
     }
 }
 
 #[cfg(test)]
 mod test {
-    use typenum::consts::{U0, U1, U2, U7};
 
-    use type_bounds::num::BoundedU32;
-
-    use super::*;
-
-    #[test]
-    fn test_reg() {
-        // Here we're attempting to create the following register:
-        // ```
-        // decl_register! {
-        //     STATUS,
-        //     u32,
-        //     ON WIDTH(1) OFFSET(0),
-        //     DEAD WIDTH(1) OFFSET(1),
-        //     COLOR WIDTH(3) OFFSET(2) [
-        //         RED = 1,
-        //         BLUE = 2,
-        //         GREEN = 3,
-        //         YELLOW = 4,
-        //     ]
-        // }
-        // ```
-
-        let _on_field: Field<BoundedU32<U0, U0, U1>, u32> = Field::new(1, 0);
-        let _dead_field: Field<BoundedU32<U0, U0, U1>, u32> = Field::new(1, 1);
-        let _color_field: Field<BoundedU32<U0, U0, U7>, u32> = Field::new(3, 2);
-    }
+    // Going to define the following register:
+    // ```
+    // decl_register! {
+    //     STATUS,
+    //     u8,
+    //     ON WIDTH(1) OFFSET(0),
+    //     DEAD WIDTH(1) OFFSET(1),
+    //     COLOR WIDTH(3) OFFSET(2) [
+    //         RED = 1,
+    //         BLUE = 2,
+    //         GREEN = 3,
+    //         YELLOW = 4,
+    //     ]
+    // }
+    // ```
 }
