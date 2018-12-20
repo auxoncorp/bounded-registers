@@ -4,6 +4,7 @@
 extern crate type_bounds;
 extern crate typenum;
 
+use core::marker::PhantomData;
 use core::ops::{BitAnd, BitOr, Not, Shl, Shr};
 
 use typenum::consts::{B1, U0, U255};
@@ -21,8 +22,8 @@ pub struct Field<
     V: IsLessOrEqual<U, Output = B1>,
     V: IsGreaterOrEqual<L, Output = B1>,
 {
-    mask: M,
-    offset: O,
+    mask: PhantomData<M>,
+    offset: PhantomData<O>,
     val: BoundedU32<V, L, U>,
 }
 
@@ -32,26 +33,11 @@ where
     V: IsLessOrEqual<U, Output = B1>,
     V: IsGreaterOrEqual<L, Output = B1>,
 {
-    pub const fn new(mask: M, offset: O) -> Self {
+    pub const fn new() -> Self {
         Field {
-            mask: mask,
-            offset: offset,
-            val: BoundedU32::zero(),
-        }
-    }
-
-    pub fn modify<N: Unsigned>(
-        self,
-        val: BoundedU32<N, L, U>,
-    ) -> Field<M, O, N, L, U>
-    where
-        N: IsLessOrEqual<U, Output = B1>,
-        N: IsGreaterOrEqual<L, Output = B1>,
-    {
-        Field {
-            mask: self.mask,
-            offset: self.offset,
-            val: val,
+            mask: PhantomData,
+            offset: PhantomData,
+            val: BoundedU32::new(V::U32),
         }
     }
 }
@@ -90,7 +76,7 @@ where
 {
 }
 
-pub struct Register<N: Unsigned>(BoundedU32<N, U0, U255>)
+pub struct Register<N: Unsigned + UnsignedLike>(BoundedU32<N, U0, U255>)
 where
     N: IsLessOrEqual<U255, Output = B1>,
     N: IsGreaterOrEqual<U0, Output = B1>;
@@ -103,26 +89,45 @@ where
     pub fn clear(self) -> BoundedU32<U0, U0, U255> {
         BoundedU32::zero()
     }
-
-    pub fn set(self) -> BoundedU32<U255, U0, U255> {
-        BoundedU32::new(255)
-    }
-
-    fn modify<
+    pub fn modify<
         M: Unsigned + UnsignedLike,
         O: Unsigned + UnsignedLike,
         V: Unsigned + UnsignedLike,
         L: Unsigned,
         U: Unsigned,
     >(
-        self,
-        field: Field<M, O, V, L, U>,
-    ) -> Self
+        _f: Field<M, O, V, L, U>,
+    ) -> Register<<N as BitAnd<<M as Not>::Output>>::Output>
     where
         V: IsLessOrEqual<U, Output = B1>,
         V: IsGreaterOrEqual<L, Output = B1>,
+
+        <M as Not>::Output: Unsigned,
+        <M as Not>::Output: UnsignedLike,
+        <M as Not>::Output: IsLessOrEqual<U255, Output = B1>,
+        <M as Not>::Output: IsGreaterOrEqual<U0, Output = B1>,
+
+        N: BitAnd<<M as Not>::Output>,
+        <N as BitAnd<<M as Not>::Output>>::Output: Unsigned,
+        <N as BitAnd<<M as Not>::Output>>::Output: UnsignedLike,
+        <N as BitAnd<<M as Not>::Output>>::Output:
+            IsLessOrEqual<U255, Output = B1>,
+        <N as BitAnd<<M as Not>::Output>>::Output:
+            IsGreaterOrEqual<U0, Output = B1>,
+
+        <N as BitAnd<<M as Not>::Output>>::Output: BitOr<V>,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output:
+            Unsigned,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output:
+            UnsignedLike,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output:
+            IsLessOrEqual<U255, Output = B1>,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output:
+            IsGreaterOrEqual<U0, Output = B1>,
     {
-        (self.0 & !field.mask) | (field.val << field.offset)
+        Register(BoundedU32::new(
+            <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output::U32,
+        ))
     }
 }
 
