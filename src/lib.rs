@@ -86,6 +86,10 @@ where
     N: IsLessOrEqual<U255, Output = B1>,
     N: IsGreaterOrEqual<U0, Output = B1>,
 {
+    /// The math to modify a field is as follows:
+    /// ```not_rust
+    /// (register.value & !field.mask) | (field.value << field.offset)
+    /// ```
     pub fn modify<
         M: Unsigned + UnsignedLike,
         O: Unsigned + UnsignedLike,
@@ -102,38 +106,8 @@ where
     where
         V: IsLessOrEqual<U, Output = B1>,
         V: IsGreaterOrEqual<L, Output = B1>,
-
-        <M as Not>::Output: Unsigned,
-        <M as Not>::Output: UnsignedLike,
-        <M as Not>::Output: IsLessOrEqual<U255, Output = B1>,
-        <M as Not>::Output: IsGreaterOrEqual<U0, Output = B1>,
-
         N: BitAnd<<M as Not>::Output>,
-        <N as BitAnd<<M as Not>::Output>>::Output: Unsigned,
-        <N as BitAnd<<M as Not>::Output>>::Output: UnsignedLike,
-        <N as BitAnd<<M as Not>::Output>>::Output:
-            IsLessOrEqual<U255, Output = B1>,
-        <N as BitAnd<<M as Not>::Output>>::Output:
-            IsGreaterOrEqual<U0, Output = B1>,
-
         V: Shl<O>,
-        <V as Shl<O>>::Output: Unsigned,
-        <V as Shl<O>>::Output: UnsignedLike,
-        <V as Shl<O>>::Output: IsLessOrEqual<U, Output = B1>,
-        <V as Shl<O>>::Output: IsGreaterOrEqual<L, Output = B1>,
-
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
-            <V as Shl<O>>::Output,
-        >>::Output: Unsigned,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
-            <V as Shl<O>>::Output,
-        >>::Output: UnsignedLike,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
-            <V as Shl<O>>::Output,
-        >>::Output: IsLessOrEqual<U, Output = B1>,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
-            <V as Shl<O>>::Output,
-        >>::Output: IsGreaterOrEqual<L, Output = B1>,
 
         <N as BitAnd<<M as Not>::Output>>::Output: BitOr<<V as Shl<O>>::Output>,
         <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
@@ -154,6 +128,36 @@ where
                 <V as Shl<O>>::Output,
             >>::Output::U32,
         ))
+    }
+
+    /// The math to read a field is as follows:
+    /// ```not_rust
+    /// (register.value & field.mask) >> field.offset
+    /// ```
+    pub fn read<
+        M: Unsigned + UnsignedLike,
+        O: Unsigned + UnsignedLike,
+        V: Unsigned + UnsignedLike,
+        L: Unsigned,
+        U: Unsigned,
+    >(
+        &self,
+        _f: Field<M, O, V, L, U>,
+    ) -> u32
+    where
+        V: IsLessOrEqual<U, Output = B1>,
+        V: IsGreaterOrEqual<L, Output = B1>,
+        N: BitAnd<M>,
+        O: Shr<<N as BitAnd<M>>::Output>,
+
+        <O as Shr<<N as BitAnd<M>>::Output>>::Output: Unsigned,
+        <O as Shr<<N as BitAnd<M>>::Output>>::Output: UnsignedLike,
+        <O as Shr<<N as BitAnd<M>>::Output>>::Output:
+            IsLessOrEqual<U, Output = B1>,
+        <O as Shr<<N as BitAnd<M>>::Output>>::Output:
+            IsGreaterOrEqual<L, Output = B1>,
+    {
+        <O as Shr<<N as BitAnd<M>>::Output>>::Output::U32
     }
 }
 
