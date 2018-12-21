@@ -86,9 +86,6 @@ where
     N: IsLessOrEqual<U255, Output = B1>,
     N: IsGreaterOrEqual<U0, Output = B1>,
 {
-    pub fn clear(self) -> BoundedU32<U0, U0, U255> {
-        BoundedU32::zero()
-    }
     pub fn modify<
         M: Unsigned + UnsignedLike,
         O: Unsigned + UnsignedLike,
@@ -97,7 +94,11 @@ where
         U: Unsigned,
     >(
         _f: Field<M, O, V, L, U>,
-    ) -> Register<<N as BitAnd<<M as Not>::Output>>::Output>
+    ) -> Register<
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output,
+    >
     where
         V: IsLessOrEqual<U, Output = B1>,
         V: IsGreaterOrEqual<L, Output = B1>,
@@ -115,18 +116,43 @@ where
         <N as BitAnd<<M as Not>::Output>>::Output:
             IsGreaterOrEqual<U0, Output = B1>,
 
-        <N as BitAnd<<M as Not>::Output>>::Output: BitOr<V>,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output:
-            Unsigned,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output:
-            UnsignedLike,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output:
-            IsLessOrEqual<U255, Output = B1>,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output:
-            IsGreaterOrEqual<U0, Output = B1>,
+        V: Shl<O>,
+        <V as Shl<O>>::Output: Unsigned,
+        <V as Shl<O>>::Output: UnsignedLike,
+        <V as Shl<O>>::Output: IsLessOrEqual<U, Output = B1>,
+        <V as Shl<O>>::Output: IsGreaterOrEqual<L, Output = B1>,
+
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output: Unsigned,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output: UnsignedLike,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output: IsLessOrEqual<U, Output = B1>,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output: IsGreaterOrEqual<L, Output = B1>,
+
+        <N as BitAnd<<M as Not>::Output>>::Output: BitOr<<V as Shl<O>>::Output>,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output: Unsigned,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output: UnsignedLike,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output: IsLessOrEqual<U255, Output = B1>,
+        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+            <V as Shl<O>>::Output,
+        >>::Output: IsGreaterOrEqual<U0, Output = B1>,
     {
         Register(BoundedU32::new(
-            <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<V>>::Output::U32,
+            <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+                <V as Shl<O>>::Output,
+            >>::Output::U32,
         ))
     }
 }
