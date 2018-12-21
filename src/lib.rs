@@ -2,16 +2,24 @@
 #![feature(const_fn)]
 
 extern crate type_bounds;
+#[macro_use]
 extern crate typenum;
 
 use core::marker::PhantomData;
 use core::ops::{BitAnd, BitOr, Not, Shl, Shr};
 
-use typenum::consts::{B1, U0, U255};
+use typenum::consts::{B1, U0, U1, U16, U255, U32};
 use typenum::{IsGreaterOrEqual, IsLessOrEqual, Unsigned};
 
 use type_bounds::num::BoundedU32;
 
+/// A Field represents a field within a register. It's type params are
+/// defined as follows:
+//
+// - `M` :: This the type level representation of the `Field`'s mask.
+// - `O` :: This the type level representation of the `Field`'s offset.
+// - `V` :: This the type level representation of the `Field`'s current value.
+// - `L` & `U` :: These represent the range in which `V` must fall.
 pub struct Field<
     M: Unsigned,
     O: Unsigned,
@@ -22,9 +30,9 @@ pub struct Field<
     V: IsLessOrEqual<U, Output = B1>,
     V: IsGreaterOrEqual<L, Output = B1>,
 {
-    mask: PhantomData<M>,
-    offset: PhantomData<O>,
-    val: BoundedU32<V, L, U>,
+    _mask: PhantomData<M>,
+    _offset: PhantomData<O>,
+    _val: BoundedU32<V, L, U>,
 }
 
 impl<M: Unsigned, O: Unsigned, V: Unsigned, L: Unsigned, U: Unsigned>
@@ -33,81 +41,61 @@ where
     V: IsLessOrEqual<U, Output = B1>,
     V: IsGreaterOrEqual<L, Output = B1>,
 {
+    /// new constructs a `Field` whose value is `V`.
     pub const fn new() -> Self {
         Field {
-            mask: PhantomData,
-            offset: PhantomData,
-            val: BoundedU32::new(V::U32),
+            _mask: PhantomData,
+            _offset: PhantomData,
+            _val: BoundedU32::new(),
         }
     }
 }
 
-pub trait UnsignedLike: Copy + Eq + Not + BitAnd + BitOr + Shl + Shr {}
+/// A register the logical representation of a register on a physical
+/// system. It contains `Field`s, the logic to extract those fields,
+/// and the ability to update the values in those `Field`s.
+///
+/// Its bounds represent the total size of the register.
+pub struct Register<N: Unsigned, L: Unsigned, U: Unsigned>(BoundedU32<N, L, U>)
+where
+    N: IsLessOrEqual<U, Output = B1>,
+    N: IsGreaterOrEqual<L, Output = B1>;
 
-impl<N: Unsigned, L: Unsigned, U: Unsigned> UnsignedLike for BoundedU32<N, L, U>
+impl<N: Unsigned, L: Unsigned, U: Unsigned> Register<N, L, U>
 where
     N: IsLessOrEqual<U, Output = B1>,
     N: IsGreaterOrEqual<L, Output = B1>,
-
-    N: Not,
-    <N as Not>::Output: Unsigned,
-    <N as Not>::Output: IsLessOrEqual<U, Output = B1>,
-    <N as Not>::Output: IsGreaterOrEqual<L, Output = B1>,
-
-    N: BitAnd,
-    <N as BitAnd>::Output: Unsigned,
-    <N as BitAnd>::Output: IsLessOrEqual<U, Output = B1>,
-    <N as BitAnd>::Output: IsGreaterOrEqual<L, Output = B1>,
-
-    N: BitOr,
-    <N as BitOr>::Output: Unsigned,
-    <N as BitOr>::Output: IsLessOrEqual<U, Output = B1>,
-    <N as BitOr>::Output: IsGreaterOrEqual<L, Output = B1>,
-
-    N: Shl,
-    <N as Shl>::Output: Unsigned,
-    <N as Shl>::Output: IsLessOrEqual<U, Output = B1>,
-    <N as Shl>::Output: IsGreaterOrEqual<L, Output = B1>,
-
-    N: Shr,
-    <N as Shr>::Output: Unsigned,
-    <N as Shr>::Output: IsLessOrEqual<U, Output = B1>,
-    <N as Shr>::Output: IsGreaterOrEqual<L, Output = B1>,
 {
-}
+    pub fn val(&self) -> u32 {
+        self.0.val()
+    }
 
-pub struct Register<N: Unsigned + UnsignedLike>(BoundedU32<N, U0, U255>)
-where
-    N: IsLessOrEqual<U255, Output = B1>,
-    N: IsGreaterOrEqual<U0, Output = B1>;
-
-impl<N: Unsigned + UnsignedLike> Register<N>
-where
-    N: IsLessOrEqual<U255, Output = B1>,
-    N: IsGreaterOrEqual<U0, Output = B1>,
-{
     /// The math to modify a field is as follows:
     /// ```not_rust
     /// (register.value & !field.mask) | (field.value << field.offset)
     /// ```
     pub fn modify<
-        M: Unsigned + UnsignedLike,
-        O: Unsigned + UnsignedLike,
-        V: Unsigned + UnsignedLike,
-        L: Unsigned,
-        U: Unsigned,
+        M: Unsigned,
+        O: Unsigned,
+        V: Unsigned,
+        FL: Unsigned,
+        FU: Unsigned,
     >(
-        _f: Field<M, O, V, L, U>,
+        self,
+        _f: Field<M, O, V, FL, FU>,
     ) -> Register<
         <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
             <V as Shl<O>>::Output,
         >>::Output,
+        L,
+        U,
     >
     where
-        V: IsLessOrEqual<U, Output = B1>,
-        V: IsGreaterOrEqual<L, Output = B1>,
-        N: BitAnd<<M as Not>::Output>,
+        V: IsLessOrEqual<FU, Output = B1>,
+        V: IsGreaterOrEqual<FL, Output = B1>,
         V: Shl<O>,
+        M: Not,
+        N: BitAnd<<M as Not>::Output>,
 
         <N as BitAnd<<M as Not>::Output>>::Output: BitOr<<V as Shl<O>>::Output>,
         <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
@@ -115,19 +103,12 @@ where
         >>::Output: Unsigned,
         <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
             <V as Shl<O>>::Output,
-        >>::Output: UnsignedLike,
+        >>::Output: IsLessOrEqual<U, Output = B1>,
         <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
             <V as Shl<O>>::Output,
-        >>::Output: IsLessOrEqual<U255, Output = B1>,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
-            <V as Shl<O>>::Output,
-        >>::Output: IsGreaterOrEqual<U0, Output = B1>,
+        >>::Output: IsGreaterOrEqual<L, Output = B1>,
     {
-        Register(BoundedU32::new(
-            <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
-                <V as Shl<O>>::Output,
-            >>::Output::U32,
-        ))
+        Register(BoundedU32::new())
     }
 
     /// The math to read a field is as follows:
@@ -135,31 +116,39 @@ where
     /// (register.value & field.mask) >> field.offset
     /// ```
     pub fn read<
-        M: Unsigned + UnsignedLike,
-        O: Unsigned + UnsignedLike,
-        V: Unsigned + UnsignedLike,
-        L: Unsigned,
-        U: Unsigned,
+        M: Unsigned,
+        O: Unsigned,
+        V: Unsigned,
+        FL: Unsigned,
+        FU: Unsigned,
     >(
         &self,
-        _f: Field<M, O, V, L, U>,
+        _f: Field<M, O, V, FL, FU>,
     ) -> u32
     where
-        V: IsLessOrEqual<U, Output = B1>,
-        V: IsGreaterOrEqual<L, Output = B1>,
+        V: IsLessOrEqual<FU, Output = B1>,
+        V: IsGreaterOrEqual<FL, Output = B1>,
         N: BitAnd<M>,
-        O: Shr<<N as BitAnd<M>>::Output>,
+        <N as BitAnd<M>>::Output: Shr<O>,
 
-        <O as Shr<<N as BitAnd<M>>::Output>>::Output: Unsigned,
-        <O as Shr<<N as BitAnd<M>>::Output>>::Output: UnsignedLike,
-        <O as Shr<<N as BitAnd<M>>::Output>>::Output:
-            IsLessOrEqual<U, Output = B1>,
-        <O as Shr<<N as BitAnd<M>>::Output>>::Output:
-            IsGreaterOrEqual<L, Output = B1>,
+        <<N as BitAnd<M>>::Output as Shr<O>>::Output: Unsigned,
+        <<N as BitAnd<M>>::Output as Shr<O>>::Output:
+            IsLessOrEqual<FU, Output = B1>,
+        <<N as BitAnd<M>>::Output as Shr<O>>::Output:
+            IsGreaterOrEqual<FL, Output = B1>,
     {
-        <O as Shr<<N as BitAnd<M>>::Output>>::Output::U32
+        <<N as BitAnd<M>>::Output as Shr<O>>::Output::U32
     }
 }
+
+/// A one-byte register.
+pub type EightBitRegister<N> = Register<N, U0, U255>;
+
+/// A two-byte register.
+pub type SixteenBitRegister<N> = Register<N, U0, op!((U1 << U16) - U1)>;
+
+/// A four-byte register.
+pub type ThirtyTwoBitRegister<N> = Register<N, U0, op!((U1 << U32) - U1)>;
 
 #[cfg(test)]
 mod test {
@@ -179,4 +168,44 @@ mod test {
     //     ]
     // }
     // ```
+
+    #[allow(unused)]
+    #[allow(non_snake_case)]
+    pub mod Status {
+        use super::super::*;
+
+        use typenum::consts::{U0, U1, U2, U28, U3, U4, U7};
+
+        pub type On<N> = Field<U1, U0, N, U0, U1>;
+        pub type Dead<N> = Field<U2, U1, N, U0, U1>;
+        pub type Color<N> = Field<U28, U2, N, U0, U7>;
+
+        #[allow(unused)]
+        #[allow(non_upper_case_globals)]
+        pub mod ColorValues {
+            use super::*;
+
+            pub const Red: Color<U1> = Color::new();
+            pub const Blue: Color<U2> = Color::new();
+            pub const Green: Color<U3> = Color::new();
+            pub const Yellow: Color<U4> = Color::new();
+        }
+    }
+
+    use super::*;
+
+    #[test]
+    fn test_reg() {
+        let reg: EightBitRegister<U0> = Register(BoundedU32::zero());
+        let reg_prime = reg.modify(Status::ColorValues::Blue);
+
+        assert_eq!(reg_prime.val(), 8_u32);
+
+        // TODO(pittma): I'd like to think a bit more on how to say "I
+        // want to read field X", such that the use of `new`, and some
+        // arbitrary implementor of `Unsigned` needn't be explicit.
+        //
+        // Maybe there's another level of module nesting.
+        assert_eq!(reg_prime.read(Status::Color::<U0>::new()), 2_u32);
+    }
 }
