@@ -8,10 +8,12 @@ extern crate typenum;
 use core::marker::PhantomData;
 use core::ops::{BitAnd, BitOr, Not, Shl, Shr};
 
-use typenum::consts::{B1, U0, U1, U16, U255, U32};
+use typenum::consts::B1;
 use typenum::{IsGreaterOrEqual, IsLessOrEqual, Unsigned};
 
 use type_bounds::num::BoundedU32;
+
+pub mod macros;
 
 /// A Field represents a field within a register. It's type params are
 /// defined as follows:
@@ -41,8 +43,13 @@ where
     V: IsLessOrEqual<U, Output = B1>,
     V: IsGreaterOrEqual<L, Output = B1>,
 {
-    /// new constructs a `Field` whose value is `V`.
-    pub const fn new() -> Self {
+    /// set produces a `Field` whose
+    /// - mask is `M`
+    /// - offset is `O`
+    /// - value is `V`
+    /// - lower bound is `L`
+    /// - upper bound is `U`
+    pub const fn set() -> Self {
         Field {
             _mask: PhantomData,
             _offset: PhantomData,
@@ -66,6 +73,11 @@ where
     N: IsLessOrEqual<U, Output = B1>,
     N: IsGreaterOrEqual<L, Output = B1>,
 {
+    /// new returns a new register whose value is `N`.
+    pub fn new() -> Self {
+        Self(BoundedU32::new())
+    }
+
     pub fn val(&self) -> u32 {
         self.0.val()
     }
@@ -141,21 +153,12 @@ where
     }
 }
 
-/// A one-byte register.
-pub type EightBitRegister<N> = Register<N, U0, U255>;
-
-/// A two-byte register.
-pub type SixteenBitRegister<N> = Register<N, U0, op!((U1 << U16) - U1)>;
-
-/// A four-byte register.
-pub type ThirtyTwoBitRegister<N> = Register<N, U0, op!((U1 << U32) - U1)>;
-
 #[cfg(test)]
 mod test {
 
     // Going to define the following register:
     // ```
-    // decl_register! {
+    // register! {
     //     STATUS,
     //     u8,
     //     ON WIDTH(1) OFFSET(0),
@@ -185,14 +188,18 @@ mod test {
         pub mod ColorValues {
             use super::*;
 
-            pub const Red: Color<U1> = Color::new();
-            pub const Blue: Color<U2> = Color::new();
-            pub const Green: Color<U3> = Color::new();
-            pub const Yellow: Color<U4> = Color::new();
+            pub const Red: Color<U1> = Color::set();
+            pub const Blue: Color<U2> = Color::set();
+            pub const Green: Color<U3> = Color::set();
+            pub const Yellow: Color<U4> = Color::set();
         }
     }
 
     use super::*;
+
+    use typenum::consts::{U0, U255};
+
+    type EightBitRegister<N> = Register<N, U0, U255>;
 
     #[test]
     fn test_reg() {
@@ -200,12 +207,6 @@ mod test {
         let reg_prime = reg.modify(Status::ColorValues::Blue);
 
         assert_eq!(reg_prime.val(), 8_u32);
-
-        // TODO(pittma): I'd like to think a bit more on how to say "I
-        // want to read field X", such that the use of `new`, and some
-        // arbitrary implementor of `Unsigned` needn't be explicit.
-        //
-        // Maybe there's another level of module nesting.
-        assert_eq!(reg_prime.read(Status::Color::<U0>::new()), 2_u32);
+        assert_eq!(reg_prime.read(Status::Color::<U0>::set()), 2_u32);
     }
 }
