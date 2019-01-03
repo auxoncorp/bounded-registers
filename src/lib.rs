@@ -14,6 +14,7 @@ use typenum::{IsGreaterOrEqual, IsLessOrEqual, Unsigned};
 use type_bounds::num::BoundedU32;
 
 pub mod macros;
+pub mod read_only;
 
 /// A Field represents a field within a register. It's type params are
 /// defined as follows:
