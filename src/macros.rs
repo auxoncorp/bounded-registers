@@ -3,12 +3,30 @@ macro_rules! register {
     {
         $reg_name:ident,
         $reg_width:ident,
+        RW,
         $($rest:tt)*
     } => {
         #[allow(unused)]
         #[allow(non_snake_case)]
         pub mod $reg_name {
-            use $crate::{Field as F, Register as Reg};
+            use $crate::read_write::{RWField as F, RWRegister as Reg};
+            use typenum::consts::*;
+
+            decl_register!($reg_width);
+
+            decl_fields!($($rest)*);
+        }
+    };
+    {
+        $reg_name:ident,
+        $reg_width:ident,
+        RO,
+        $($rest:tt)*
+    } => {
+        #[allow(unused)]
+        #[allow(non_snake_case)]
+        pub mod $reg_name {
+            use $crate::{RWField as F, RWRegister as Reg};
             use typenum::consts::*;
 
             decl_register!($reg_width);
@@ -20,13 +38,13 @@ macro_rules! register {
 
 macro_rules! decl_register {
     (u8) => {
-        pub type Register<N> = Reg<N, U0, op!(U255)>;
+        pub type RWRegister<N> = Reg<N, U0, op!(U255)>;
     };
     (u16) => {
-        pub type Register<N> = Reg<N, U0, op!(U65536 - U1)>;
+        pub type RWRegister<N> = Reg<N, U0, op!(U65536 - U1)>;
     };
     (u32) => {
-        pub type Register<N> = Reg<N, U0, op!(U4294967296 - U1)>;
+        pub type RWRegister<N> = Reg<N, U0, op!(U4294967296 - U1)>;
     };
 }
 
@@ -38,7 +56,7 @@ macro_rules! decl_fields {
         pub mod $field_name {
             use super::*;
 
-            pub type Field<N> = F<op!($field_max << $field_offset), $field_offset, N, U0, $field_max>;
+            pub type RWField<N> = F<op!($field_max << $field_offset), $field_offset, N, U0, $field_max>;
 
             #[allow(unused)]
             #[allow(non_upper_case_globals)]
@@ -46,7 +64,7 @@ macro_rules! decl_fields {
                 use super::*;
 
                 $(
-                    pub const $enum_name: Field<$enum_val> = Field::set();
+                    pub const $enum_name: RWField<$enum_val> = RWField::set();
                 )*
             }
         }
@@ -59,7 +77,7 @@ macro_rules! decl_fields {
         pub mod $field_name {
             use super::*;
 
-            pub type Field<N> = F<op!($field_max << $field_offset), $field_offset, N, U0, $field_max>;
+            pub type RWField<N> = F<op!($field_max << $field_offset), $field_offset, N, U0, $field_max>;
         }
         decl_fields!($($rest)*);
     };
@@ -78,6 +96,7 @@ mod test {
     register! {
         Status,
         u8,
+        RW,
         On MAX(U1) OFFSET(U0),
         Dead MAX(U1) OFFSET(U1),
         Color MAX(U7) OFFSET(U2) [
@@ -90,8 +109,8 @@ mod test {
 
     #[test]
     fn test_reg_macro() {
-        let reg = Status::Register::<U0>::new();
-        let reg_prime = reg.modify(Status::Color::Values::Blue);
+        let reg = Status::RWRegister::<U0>::new();
+        let reg_prime = reg.modify_field(Status::Color::Values::Blue);
         assert_eq!(reg_prime.val(), 8_u32);
     }
 }

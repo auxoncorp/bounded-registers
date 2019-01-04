@@ -71,3 +71,40 @@ pub trait RORegister {
         ROField::new((val & M::reify()) >> O::reify())
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use typenum::consts::{U0, U2, U28, U7};
+
+    struct ROStatus {
+        val: *const u8,
+    }
+
+    impl RORegister for ROStatus {
+        type Output = u8;
+
+        unsafe fn get_ptr(&self) -> *const Self::Output {
+            self.val
+        }
+    }
+
+    #[test]
+    fn test_read_only() {
+        // the value our register currently has.
+        let x = 8_u8;
+        let x_ptr = &x as *const u8;
+
+        // An arbitrary field. This will have an alias like
+        // Status::Color::Read
+        let field: ROField<u8, U28, U2, U0, U7> = ROField::new(0).unwrap();
+
+        // Our register and its value / ptr.
+        let ror = ROStatus { val: x_ptr };
+
+        // extracting the value of the field.
+        let field_val = ror.read(field).unwrap().val();
+        assert_eq!(field_val, 2);
+    }
+}
