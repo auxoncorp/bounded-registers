@@ -58,7 +58,7 @@ where
 ///
 /// Otherwise, when one or both sides are type-level numbers, it's a
 /// simple bitwise or operation.
-trait With<Rhs> {
+pub trait With<Rhs> {
     type Output;
 }
 
@@ -241,6 +241,8 @@ where
 #[cfg(test)]
 mod test {
 
+    use typenum::consts::{U0, U1, U2, U255, U28, U3, U4, U7};
+
     // Going to define the following register:
     // ```
     // register! {
@@ -261,8 +263,7 @@ mod test {
     #[allow(non_snake_case)]
     pub mod Status {
         use super::super::*;
-
-        use typenum::consts::{U0, U1, U2, U28, U3, U4, U7};
+        use super::*;
 
         pub type On<N> = RWField<U1, U0, N, U0, U1>;
         pub type Dead<N> = RWField<U2, U1, N, U0, U1>;
@@ -282,8 +283,6 @@ mod test {
 
     use super::*;
 
-    use typenum::consts::{U0, U255};
-
     type EightBitRWRegister<N> = RWRegister<N, U0, U255>;
 
     #[test]
@@ -293,5 +292,16 @@ mod test {
 
         assert_eq!(reg_prime.val(), 8_u32);
         assert_eq!(reg_prime.read(Status::Color::<U0>::set()), 2_u32);
+    }
+
+    #[test]
+    fn test_with() {
+        let reg: EightBitRWRegister<U0> = RWRegister(BoundedU32::zero());
+        let reg_prime: EightBitRWRegister<
+            <<RWField<U1, U0, U1, U0, U1> as With<
+                RWField<U28, U2, U2, U0, U7>,
+            >>::Output as With<RWField<U2, U1, U1, U0, U1>>>::Output,
+        > = reg.modify();
+        assert_eq!(reg_prime.val(), 11);
     }
 }

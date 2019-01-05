@@ -64,7 +64,7 @@ macro_rules! decl_fields {
                 use super::*;
 
                 $(
-                    pub const $enum_name: RWField<$enum_val> = RWField::set();
+                    pub type $enum_name = RWField<$enum_val>;
                 )*
             }
         }
@@ -88,10 +88,25 @@ macro_rules! decl_fields {
     (, $($rest:tt)*) => (decl_fields!($($rest)*);)
 }
 
+#[macro_export]
+macro_rules! with {
+    {
+        $lhs:ident + $rhs:ident
+    } => {
+        <$lhs as With<$rhs>>::Output
+    };
+    {
+        $lhs:ident + $($rest:tt)*
+    } => {
+        <$lhs as With<with!($($rest)*)>>::Output
+    };
+    () => ()
+}
+
 #[cfg(test)]
 mod test {
 
-    use typenum::consts::U0;
+    use typenum::consts::{U0, U1};
 
     register! {
         Status,
@@ -110,7 +125,19 @@ mod test {
     #[test]
     fn test_reg_macro() {
         let reg = Status::RWRegister::<U0>::new();
-        let reg_prime = reg.modify_field(Status::Color::Values::Blue);
+        let reg_prime = reg.modify_field(Status::Color::Values::Blue::set());
         assert_eq!(reg_prime.val(), 8_u32);
+    }
+
+    #[test]
+    fn test_with() {
+        use super::super::read_write::With;
+        type OnField = Status::On::RWField<U1>;
+        type DeadField = Status::Dead::RWField<U1>;
+        type Blue = Status::Color::Values::Blue;
+        let reg = Status::RWRegister::<U0>::new();
+        let reg_prime: Status::RWRegister<with!(OnField + DeadField + Blue)> =
+            reg.modify();
+        assert_eq!(reg_prime.val(), 11_u32);
     }
 }
