@@ -44,30 +44,32 @@ where
     }
 }
 
-pub trait RORegister {
-    type Output;
-    unsafe fn get_ptr(&self) -> *const Self::Output;
+pub struct RORegister<N> {
+    ptr: *const N,
+}
 
-    fn read<M: Unsigned, O: Unsigned, L: Unsigned, U: Unsigned>(
+impl<N> RORegister<N>
+where
+    N: Copy + PartialOrd,
+{
+    pub fn new(ptr: *const N) -> Self {
+        Self { ptr }
+    }
+
+    pub fn read<M: Unsigned, O: Unsigned, L: Unsigned, U: Unsigned>(
         &self,
-        _field: ROField<Self::Output, M, O, L, U>,
-    ) -> Option<ROField<Self::Output, M, O, L, U>>
+        _field: ROField<N, M, O, L, U>,
+    ) -> Option<ROField<N, M, O, L, U>>
     where
-        L: ReifyTo<Self::Output>,
-        U: ReifyTo<Self::Output> + IsGreater<L, Output = B1>,
-        M: ReifyTo<Self::Output>,
-        O: ReifyTo<Self::Output>,
+        L: ReifyTo<N>,
+        U: ReifyTo<N> + IsGreater<L, Output = B1>,
+        M: ReifyTo<N>,
+        O: ReifyTo<N>,
 
-        <Self as RORegister>::Output:
-            Copy + Clone + PartialOrd + BitAnd<<Self as RORegister>::Output>,
-
-        <<Self as RORegister>::Output as BitAnd>::Output:
-            Shr<Self::Output, Output = Self::Output>,
-        <<<Self as RORegister>::Output as BitAnd>::Output as Shr<
-            Self::Output,
-        >>::Output: Clone + Copy + PartialOrd,
+        N: BitAnd<N>,
+        <N as BitAnd<N>>::Output: Shr<N, Output = N>,
     {
-        let val = unsafe { *self.get_ptr() };
+        let val = unsafe { *self.ptr };
         ROField::new((val & M::reify()) >> O::reify())
     }
 }
@@ -77,18 +79,6 @@ mod test {
     use super::*;
 
     use typenum::consts::{U0, U2, U28, U7};
-
-    struct ROStatus {
-        val: *const u8,
-    }
-
-    impl RORegister for ROStatus {
-        type Output = u8;
-
-        unsafe fn get_ptr(&self) -> *const Self::Output {
-            self.val
-        }
-    }
 
     #[test]
     fn test_read_only() {
@@ -101,7 +91,7 @@ mod test {
         let field: ROField<u8, U28, U2, U0, U7> = ROField::new(0).unwrap();
 
         // Our register and its value / ptr.
-        let ror = ROStatus { val: x_ptr };
+        let ror = RORegister::new(x_ptr);
 
         // extracting the value of the field.
         let field_val = ror.read(field).unwrap().val();

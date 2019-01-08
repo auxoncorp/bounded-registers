@@ -1,5 +1,5 @@
 use core::marker::PhantomData;
-use core::ops::{Add, BitAnd, BitOr, Not, Shl, Shr};
+use core::ops::{BitAnd, BitOr, Not, Shl, Shr};
 
 use typenum::consts::B1;
 use typenum::{IsGreaterOrEqual, IsLessOrEqual, Unsigned};
@@ -8,11 +8,12 @@ use type_bounds::num::BoundedU32;
 
 /// A RWField represents a field within a register. It's type params are
 /// defined as follows:
-//
-// - `M` :: This the type level representation of the `RWField`'s mask.
-// - `O` :: This the type level representation of the `RWField`'s offset.
-// - `V` :: This the type level representation of the `RWField`'s current value.
-// - `L` & `U` :: These represent the range in which `V` must fall.
+///
+/// - `M` :: This the type level representation of the `RWField`'s mask.
+/// - `O` :: This the type level representation of the `RWField`'s offset.
+/// - `V` :: This the type level representation of the `RWField`'s current
+///   value.
+/// - `L` & `U` :: These represent the range in which `V` must fall.
 pub struct RWField<
     M: Unsigned,
     O: Unsigned,
@@ -138,25 +139,34 @@ where
 /// and the ability to update the values in those `RWField`s.
 ///
 /// Its bounds represent the total size of the register.
-pub struct RWRegister<N: Unsigned, L: Unsigned, U: Unsigned>(
-    BoundedU32<N, L, U>,
-)
+pub struct RWRegister<N: Unsigned, L: Unsigned, U: Unsigned>
 where
     N: IsLessOrEqual<U, Output = B1>,
-    N: IsGreaterOrEqual<L, Output = B1>;
+    N: IsGreaterOrEqual<L, Output = B1>,
+{
+    ptr: *mut u32,
+    val: BoundedU32<N, L, U>,
+}
 
 impl<N: Unsigned, L: Unsigned, U: Unsigned> RWRegister<N, L, U>
 where
     N: IsLessOrEqual<U, Output = B1>,
     N: IsGreaterOrEqual<L, Output = B1>,
 {
-    /// new returns a new register whose value is `N`.
-    pub fn new() -> Self {
-        Self(BoundedU32::new())
+    /// `new` returns a new register whose value is `N`.
+    /// It also sets the register at `ptr` to `N`'s value.
+    pub fn new(ptr: *mut u32) -> Self {
+        // tie `N` to the value at the pointer given.
+        unsafe { *ptr = N::U32 };
+
+        Self {
+            val: BoundedU32::new(),
+            ptr: ptr,
+        }
     }
 
     pub fn val(&self) -> u32 {
-        self.0.val()
+        self.val.val()
     }
 
     /// The math to modify a field is as follows:
@@ -197,15 +207,27 @@ where
             <V as Shl<O>>::Output,
         >>::Output: IsGreaterOrEqual<L, Output = B1>,
     {
-        RWRegister(BoundedU32::new())
+        unsafe {
+            *self.ptr = <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+                <V as Shl<O>>::Output,
+            >>::Output::U32
+        };
+        RWRegister {
+            val: BoundedU32::new(),
+            ptr: self.ptr,
+        }
     }
 
-    pub fn modify<V: Unsigned>(&self) -> RWRegister<V, L, U>
+    pub fn modify<V: Unsigned>(self) -> RWRegister<V, L, U>
     where
         V: IsLessOrEqual<U, Output = B1>,
         V: IsGreaterOrEqual<L, Output = B1>,
     {
-        RWRegister(BoundedU32::new())
+        unsafe { *self.ptr = V::U32 };
+        RWRegister {
+            val: BoundedU32::new(),
+            ptr: self.ptr,
+        }
     }
 
     /// The math to read a field is as follows:
@@ -287,7 +309,8 @@ mod test {
 
     #[test]
     fn test_reg() {
-        let reg: EightBitRWRegister<U0> = RWRegister(BoundedU32::zero());
+        let val = &mut 0_u32 as *mut u32;
+        let reg: EightBitRWRegister<U0> = RWRegister::new(val);
         let reg_prime = reg.modify_field(Status::ColorValues::Blue);
 
         assert_eq!(reg_prime.val(), 8_u32);
@@ -296,7 +319,8 @@ mod test {
 
     #[test]
     fn test_with() {
-        let reg: EightBitRWRegister<U0> = RWRegister(BoundedU32::zero());
+        let val = &mut 0_u32 as *mut u32;
+        let reg: EightBitRWRegister<U0> = RWRegister::new(val);
         let reg_prime: EightBitRWRegister<
             <<RWField<U1, U0, U1, U0, U1> as With<
                 RWField<U28, U2, U2, U0, U7>,
