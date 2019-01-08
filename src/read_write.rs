@@ -334,6 +334,22 @@ mod test {
     }
 
     #[test]
+    fn overwrite() {
+        // We set the initial value to 1.
+        let mut ow_val = 1_u32;
+        {
+            // Then we give the register a pointer to this value, and
+            // set the register's value as 0.
+            let ow_val_ptr = &mut ow_val as *mut u32;
+            let _reg: EightBitRegister<U0> = Register::new(ow_val_ptr);
+        }
+
+        // So when we read the value back out, it should match that of
+        // the register's.
+        assert_eq!(ow_val, 0);
+    }
+
+    #[test]
     fn test_with() {
         let val = &mut 0_u32 as *mut u32;
         let reg: EightBitRegister<U0> = Register::new(val);

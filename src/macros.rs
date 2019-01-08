@@ -1,3 +1,47 @@
+/// The `register!` macro generates the necessary parts for managing a register.
+/// Use it like so:
+/// ```
+/// #[macro_use]
+/// extern crate registers;
+/// #[macro_use]
+/// extern crate typenum;
+///
+/// register! {
+///     Status,
+///     u8,
+///     RW,
+///     On WIDTH(U1) OFFSET(U0),
+///     Dead WIDTH(U1) OFFSET(U1),
+///     Color WIDTH(U3) OFFSET(U2) [
+///         Red = U1,
+///         Blue = U2,
+///         Green = U3,
+///         Yellow = U4
+///     ]
+/// }
+/// # fn main() {}
+/// ```
+/// The fields are, in order:
+/// 1. The register's name.
+/// 2. The permissions for this register. There are two options:
+///    * read-write (`RW`)
+///    * read-only, (`RO`)
+///    Any other entry here will cause an expansion failure.
+/// 3. A field list. A field declaration requires that fields offset and its
+///    maximum value. See the section below on how to use fields.
+///
+/// ### Fields
+/// A field may be declared in two ways; either with or
+/// without enumerated values. The example above shows both. `On` and
+/// `Dead` are declared only with their width and offset, while
+/// `Color` also declares its possible values with their names and/or
+/// meanings.
+///
+/// ### Nota Bené
+/// Notice that width, offset, and the enumerated values are stated in terms of
+/// their type-level numbers, prepended with `U`. This is because `registers`
+/// uses type-level math in its generated code for as many operations as
+/// possible for safer and faster register access.
 #[macro_export]
 macro_rules! register {
     {
@@ -73,13 +117,13 @@ macro_rules! rw_fields {
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
-            pub mod Values {
-                use super::*;
-
-                $(
-                    pub const $enum_name: Field<$enum_val> = Field::new();
-                )*
-            }
+            $(
+                pub mod $enum_name {
+                    use super::*;
+                    pub type Type = Field<$enum_val>;
+                    pub const Term: Field<$enum_val> = Field::new();
+                }
+            )*
         }
         rw_fields!($($rest)*);
     };
@@ -158,7 +202,42 @@ macro_rules! ro_fields {
     () => ()
 }
 
-#[doc(hidden)]
+/// `with!` is used to provide a shorthand for atomically updating many fields
+/// on a register. Assuming we have the register declared above, we could use
+/// `with!` when making modifications:
+/// ```
+/// #[macro_use]
+/// extern crate registers;
+/// #[macro_use]
+/// extern crate typenum;
+/// use registers::read_write::With;
+/// use typenum::consts::{U0, U1};
+///
+/// register! {
+///     Status,
+///     u8,
+///     RW,
+///     On WIDTH(U1) OFFSET(U0),
+///     Dead WIDTH(U1) OFFSET(U1),
+///     Color WIDTH(U3) OFFSET(U2) [
+///         Red = U1,
+///         Blue = U2,
+///         Green = U3,
+///         Yellow = U4
+///     ]
+/// }
+///
+/// # fn main() {
+/// type OnField = Status::On::Field<U1>;
+/// type DeadField = Status::Dead::Field<U1>;
+/// type Blue = Status::Color::Blue::Type;
+/// let val = &mut 0_u32 as *mut u32;
+/// let reg = Status::Register::<U0>::new(val);
+/// let reg_prime: Status::Register<with!(OnField + DeadField + Blue)> =
+///     reg.modify();
+/// assert_eq!(reg_prime.val(), 11_u32);
+/// # }
+/// ```
 #[macro_export]
 macro_rules! with {
     {
@@ -176,7 +255,7 @@ macro_rules! with {
 #[cfg(test)]
 mod test {
 
-    use typenum::consts::U0;
+    use typenum::consts::{U0, U1};
 
     register! {
         Status,
@@ -189,18 +268,18 @@ mod test {
             Blue = U2,
             Green = U3,
             Yellow = U4
-        ],
+        ]
     }
 
     #[test]
     fn test_reg_macro_rw() {
         let val = &mut 0_u32 as *mut u32;
         let reg = Status::Register::<U0>::new(val);
-        let reg_prime = reg.modify_field(Status::Color::Values::Blue);
+        let reg_prime = reg.modify_field(Status::Color::Blue::Term);
         assert_eq!(reg_prime.val(), 8_u32);
         assert_eq!(
             reg_prime.read(Status::Color::Read),
-            Status::Color::Values::Blue
+            Status::Color::Blue::Term
         );
     }
 
@@ -209,7 +288,7 @@ mod test {
         u32,
         RO,
         Working WIDTH(U1) OFFSET(U0),
-        Width WIDTH(U3) OFFSET(U1) [
+        Width WIDTH(U2) OFFSET(U1) [
             Four = U0,
             Eight = U1,
             Sixteen = U2
@@ -224,17 +303,20 @@ mod test {
         assert_eq!(width.val(), RNG::Width::Values::Sixteen);
     }
 
-    // #[test]
-    // fn test_with() {
-    //     use super::super::read_write::With;
-    //     type OnField = Status::On::RWField<U1>;
-    //     type DeadField = Status::Dead::RWField<U1>;
-    //     type Blue = Status::Color::Values::Blue;
+    #[test]
+    fn test_with() {
+        use super::super::read_write::With;
+        type On = Status::On::Field<U1>;
+        type Dead = Status::Dead::Field<U1>;
+        type Blue = Status::Color::Blue::Type;
 
-    //     let val = &mut 0_u32 as *mut u32;
-    //     let reg = Status::RWRegister::<U0>::new(val);
-    //     let reg_prime: Status::RWRegister<with!(OnField + DeadField + Blue)>
-    // =         reg.modify();
-    //     assert_eq!(reg_prime.val(), 11_u32);
-    // }
+        let val = &mut 0_u32 as *mut u32;
+        let reg: Status::Register<U0> = Status::Register::new(val);
+        let reg_prime: Status::Register<with!(On + Dead + Blue)> = reg.modify();
+        assert_eq!(reg_prime.val(), 11_u32);
+        assert_eq!(
+            reg_prime.read(Status::Color::Read),
+            Status::Color::Blue::Term
+        );
+    }
 }
