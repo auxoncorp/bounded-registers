@@ -6,15 +6,15 @@ use typenum::{IsGreaterOrEqual, IsLessOrEqual, Unsigned};
 
 use type_bounds::num::BoundedU32;
 
-/// A RWField represents a field within a register. It's type params are
+/// A Field represents a field within a register. It's type params are
 /// defined as follows:
 ///
-/// - `M` :: This the type level representation of the `RWField`'s mask.
-/// - `O` :: This the type level representation of the `RWField`'s offset.
-/// - `V` :: This the type level representation of the `RWField`'s current
-///   value.
+/// - `M` :: This the type level representation of the `Field`'s mask.
+/// - `O` :: This the type level representation of the `Field`'s offset.
+/// - `V` :: This the type level representation of the `Field`'s current value.
 /// - `L` & `U` :: These represent the range in which `V` must fall.
-pub struct RWField<
+#[derive(Debug)]
+pub struct Field<
     M: Unsigned,
     O: Unsigned,
     V: Unsigned,
@@ -30,23 +30,39 @@ pub struct RWField<
 }
 
 impl<M: Unsigned, O: Unsigned, V: Unsigned, L: Unsigned, U: Unsigned>
-    RWField<M, O, V, L, U>
+    Field<M, O, V, L, U>
 where
     V: IsLessOrEqual<U, Output = B1>,
     V: IsGreaterOrEqual<L, Output = B1>,
 {
-    /// set produces a `RWField` whose
+    /// new produces a `Field` whose
     /// - mask is `M`
     /// - offset is `O`
     /// - value is `V`
     /// - lower bound is `L`
     /// - upper bound is `U`
-    pub const fn set() -> Self {
-        RWField {
+    pub const fn new() -> Self {
+        Field {
             _mask: PhantomData,
             _offset: PhantomData,
             _val: BoundedU32::new(),
         }
+    }
+
+    /// `val` returns the runtime value of the field.
+    pub const fn val(&self) -> u32 {
+        V::U32
+    }
+}
+
+impl<M: Unsigned, O: Unsigned, V: Unsigned, L: Unsigned, U: Unsigned>
+    PartialEq<Field<M, O, V, L, U>> for Field<M, O, V, L, U>
+where
+    V: IsLessOrEqual<U, Output = B1>,
+    V: IsGreaterOrEqual<L, Output = B1>,
+{
+    fn eq(&self, _rhs: &Field<M, O, V, L, U>) -> bool {
+        true
     }
 }
 
@@ -75,7 +91,7 @@ impl<
         VR: Unsigned,
         LR: Unsigned,
         UR: Unsigned,
-    > With<RWField<MR, OR, VR, LR, UR>> for RWField<ML, OL, VL, LL, UL>
+    > With<Field<MR, OR, VR, LR, UR>> for Field<ML, OL, VL, LL, UL>
 where
     VL: IsGreaterOrEqual<LL, Output = B1> + IsLessOrEqual<UL, Output = B1>,
     VR: IsGreaterOrEqual<LR, Output = B1> + IsLessOrEqual<UR, Output = B1>,
@@ -97,7 +113,7 @@ impl<
         VR: Unsigned,
         LR: Unsigned,
         UR: Unsigned,
-    > With<RWField<MR, OR, VR, LR, UR>> for V
+    > With<Field<MR, OR, VR, LR, UR>> for V
 where
     VR: IsGreaterOrEqual<LR, Output = B1> + IsLessOrEqual<UR, Output = B1>,
 
@@ -116,7 +132,7 @@ impl<
         VL: Unsigned,
         LL: Unsigned,
         UL: Unsigned,
-    > With<V> for RWField<ML, OL, VL, LL, UL>
+    > With<V> for Field<ML, OL, VL, LL, UL>
 where
     VL: IsGreaterOrEqual<LL, Output = B1> + IsLessOrEqual<UL, Output = B1>,
 
@@ -135,11 +151,11 @@ where
 }
 
 /// The logical representation of a register on a physical
-/// system. It contains `RWField`s, the logic to extract those fields,
-/// and the ability to update the values in those `RWField`s.
+/// system. It contains `Field`s, the logic to extract those fields,
+/// and the ability to update the values in those `Field`s.
 ///
 /// Its bounds represent the total size of the register.
-pub struct RWRegister<N: Unsigned, L: Unsigned, U: Unsigned>
+pub struct Register<N: Unsigned, L: Unsigned, U: Unsigned>
 where
     N: IsLessOrEqual<U, Output = B1>,
     N: IsGreaterOrEqual<L, Output = B1>,
@@ -148,7 +164,7 @@ where
     val: BoundedU32<N, L, U>,
 }
 
-impl<N: Unsigned, L: Unsigned, U: Unsigned> RWRegister<N, L, U>
+impl<N: Unsigned, L: Unsigned, U: Unsigned> Register<N, L, U>
 where
     N: IsLessOrEqual<U, Output = B1>,
     N: IsGreaterOrEqual<L, Output = B1>,
@@ -181,8 +197,8 @@ where
         FU: Unsigned,
     >(
         self,
-        _f: RWField<M, O, V, FL, FU>,
-    ) -> RWRegister<
+        _f: Field<M, O, V, FL, FU>,
+    ) -> Register<
         <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
             <V as Shl<O>>::Output,
         >>::Output,
@@ -212,19 +228,19 @@ where
                 <V as Shl<O>>::Output,
             >>::Output::U32
         };
-        RWRegister {
+        Register {
             val: BoundedU32::new(),
             ptr: self.ptr,
         }
     }
 
-    pub fn modify<V: Unsigned>(self) -> RWRegister<V, L, U>
+    pub fn modify<V: Unsigned>(self) -> Register<V, L, U>
     where
         V: IsLessOrEqual<U, Output = B1>,
         V: IsGreaterOrEqual<L, Output = B1>,
     {
         unsafe { *self.ptr = V::U32 };
-        RWRegister {
+        Register {
             val: BoundedU32::new(),
             ptr: self.ptr,
         }
@@ -242,8 +258,8 @@ where
         FU: Unsigned,
     >(
         &self,
-        _f: RWField<M, O, V, FL, FU>,
-    ) -> u32
+        _f: Field<M, O, V, FL, FU>,
+    ) -> Field<M, O, <<N as BitAnd<M>>::Output as Shr<O>>::Output, FL, FU>
     where
         V: IsLessOrEqual<FU, Output = B1>,
         V: IsGreaterOrEqual<FL, Output = B1>,
@@ -256,7 +272,7 @@ where
         <<N as BitAnd<M>>::Output as Shr<O>>::Output:
             IsGreaterOrEqual<FL, Output = B1>,
     {
-        <<N as BitAnd<M>>::Output as Shr<O>>::Output::U32
+        Field::new()
     }
 }
 
@@ -287,44 +303,44 @@ mod test {
         use super::super::*;
         use super::*;
 
-        pub type On<N> = RWField<U1, U0, N, U0, U1>;
-        pub type Dead<N> = RWField<U2, U1, N, U0, U1>;
-        pub type Color<N> = RWField<U28, U2, N, U0, U7>;
+        pub type On<N> = Field<U1, U0, N, U0, U1>;
+        pub type Dead<N> = Field<U2, U1, N, U0, U1>;
+        pub type Color<N> = Field<U28, U2, N, U0, U7>;
 
         #[allow(unused)]
         #[allow(non_upper_case_globals)]
         pub mod ColorValues {
             use super::*;
 
-            pub const Red: Color<U1> = Color::set();
-            pub const Blue: Color<U2> = Color::set();
-            pub const Green: Color<U3> = Color::set();
-            pub const Yellow: Color<U4> = Color::set();
+            pub const Red: Color<U1> = Color::new();
+            pub const Blue: Color<U2> = Color::new();
+            pub const Green: Color<U3> = Color::new();
+            pub const Yellow: Color<U4> = Color::new();
         }
     }
 
     use super::*;
 
-    type EightBitRWRegister<N> = RWRegister<N, U0, U255>;
+    type EightBitRegister<N> = Register<N, U0, U255>;
 
     #[test]
     fn test_reg() {
         let val = &mut 0_u32 as *mut u32;
-        let reg: EightBitRWRegister<U0> = RWRegister::new(val);
+        let reg: EightBitRegister<U0> = Register::new(val);
         let reg_prime = reg.modify_field(Status::ColorValues::Blue);
 
         assert_eq!(reg_prime.val(), 8_u32);
-        assert_eq!(reg_prime.read(Status::Color::<U0>::set()), 2_u32);
+        assert_eq!(reg_prime.read(Status::Color::<U0>::new()).val(), 2_u32);
     }
 
     #[test]
     fn test_with() {
         let val = &mut 0_u32 as *mut u32;
-        let reg: EightBitRWRegister<U0> = RWRegister::new(val);
-        let reg_prime: EightBitRWRegister<
-            <<RWField<U1, U0, U1, U0, U1> as With<
-                RWField<U28, U2, U2, U0, U7>,
-            >>::Output as With<RWField<U2, U1, U1, U0, U1>>>::Output,
+        let reg: EightBitRegister<U0> = Register::new(val);
+        let reg_prime: EightBitRegister<
+            <<Field<U1, U0, U1, U0, U1> as With<
+                Field<U28, U2, U2, U0, U7>,
+            >>::Output as With<Field<U2, U1, U1, U0, U1>>>::Output,
         > = reg.modify();
         assert_eq!(reg_prime.val(), 11);
     }

@@ -1,13 +1,13 @@
 use core::marker::PhantomData;
 use core::ops::{BitAnd, Shr};
 
-use typenum::consts::B1;
+use typenum::consts::{B1, U0};
 use typenum::{IsGreater, Unsigned};
 
 use type_bounds::num::{Bounded, ReifyTo};
 
 #[derive(Clone, Copy)]
-pub struct ROField<N: Clone + Copy + PartialOrd, M, O, L, U>
+pub struct Field<N: Clone + Copy + PartialOrd, M, O, L, U>
 where
     L: ReifyTo<N>,
     U: ReifyTo<N>,
@@ -19,10 +19,9 @@ where
     val: Bounded<N, L, U>,
 }
 
-impl<N: PartialOrd, M: Unsigned, O: Unsigned, L: Unsigned, U: Unsigned>
-    ROField<N, M, O, L, U>
+impl<N, M: Unsigned, O: Unsigned, L: Unsigned, U: Unsigned> Field<N, M, O, L, U>
 where
-    N: Clone + Copy + PartialOrd,
+    N: Clone + Copy + PartialOrd + PartialEq,
     L: ReifyTo<N>,
     U: ReifyTo<N>,
 
@@ -44,11 +43,38 @@ where
     }
 }
 
-pub struct RORegister<N> {
+impl<M: Unsigned, O: Unsigned, U: Unsigned> Field<u32, M, O, U0, U>
+where
+    U: IsGreater<U0, Output = B1>,
+{
+    pub const fn zero() -> Self {
+        Self {
+            _mask: PhantomData,
+            _offset: PhantomData,
+            val: Bounded::zero(),
+        }
+    }
+}
+
+impl<N: PartialOrd, M: Unsigned, O: Unsigned, L: Unsigned, U: Unsigned>
+    PartialEq<N> for Field<N, M, O, L, U>
+where
+    N: Clone + Copy + PartialOrd + PartialEq,
+    L: ReifyTo<N>,
+    U: ReifyTo<N>,
+
+    U: IsGreater<L, Output = B1>,
+{
+    fn eq(&self, rhs: &N) -> bool {
+        self.val() == *rhs
+    }
+}
+
+pub struct Register<N> {
     ptr: *const N,
 }
 
-impl<N> RORegister<N>
+impl<N> Register<N>
 where
     N: Copy + PartialOrd,
 {
@@ -58,8 +84,8 @@ where
 
     pub fn read<M: Unsigned, O: Unsigned, L: Unsigned, U: Unsigned>(
         &self,
-        _field: ROField<N, M, O, L, U>,
-    ) -> Option<ROField<N, M, O, L, U>>
+        _field: Field<N, M, O, L, U>,
+    ) -> Option<Field<N, M, O, L, U>>
     where
         L: ReifyTo<N>,
         U: ReifyTo<N> + IsGreater<L, Output = B1>,
@@ -70,7 +96,7 @@ where
         <N as BitAnd<N>>::Output: Shr<N, Output = N>,
     {
         let val = unsafe { *self.ptr };
-        ROField::new((val & M::reify()) >> O::reify())
+        Field::new((val & M::reify()) >> O::reify())
     }
 }
 
@@ -88,10 +114,10 @@ mod test {
 
         // An arbitrary field. This will have an alias like
         // Status::Color::Read
-        let field: ROField<u8, U28, U2, U0, U7> = ROField::new(0).unwrap();
+        let field: Field<u8, U28, U2, U0, U7> = Field::new(0).unwrap();
 
         // Our register and its value / ptr.
-        let ror = RORegister::new(x_ptr);
+        let ror = Register::new(x_ptr);
 
         // extracting the value of the field.
         let field_val = ror.read(field).unwrap().val();
