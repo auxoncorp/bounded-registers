@@ -47,23 +47,6 @@ macro_rules! register {
     {
         $name:ident,
         $width:ident,
-        RW,
-        $($rest:tt)*
-    } => {
-        #[allow(unused)]
-        #[allow(non_snake_case)]
-        pub mod $name {
-            use typenum::consts::*;
-            use $crate::read_write::Register as R;
-
-            pub type Register<N> = R<N, U0, reg_ubounds!($width)>;
-
-            rw_fields!($($rest)*);
-        }
-    };
-    {
-        $name:ident,
-        $width:ident,
         RO,
         $($rest:tt)*
     } => {
@@ -80,6 +63,25 @@ macro_rules! register {
 
             ro_fields!($($rest)*);
         }
+    };
+    {
+        $name:ident,
+        $width:ident,
+        $mode:ident,
+        $($rest:tt)*
+    } => {
+        #[allow(unused)]
+        #[allow(non_snake_case)]
+        pub mod $name {
+            use typenum::consts::*;
+            use $crate::read_write::Register as R;
+
+
+            pub type Register<N> = R<N, U0, reg_ubounds!($width)>;
+
+            rw_fields!($($rest)*);
+        }
+        reg_mode!($mode);
     }
 }
 
@@ -200,6 +202,18 @@ macro_rules! ro_fields {
     };
     (, $($rest:tt)*) => (ro_fields!($($rest)*););
     () => ()
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! reg_mode {
+    (RW) => {
+        use $crate::read_write::Read;
+        use $crate::read_write::Write;
+    };
+    (WO) => {
+        use $crate::read_write::Write;
+    };
 }
 
 /// `with!` is used to provide a shorthand for atomically updating many fields

@@ -184,12 +184,32 @@ where
     pub fn val(&self) -> u32 {
         self.val.val()
     }
+}
+
+pub trait Reg {
+    unsafe fn ptr(&self) -> *mut u32;
+}
+
+impl<N: Unsigned, L: Unsigned, U: Unsigned> Reg for Register<N, L, U>
+where
+    N: IsLessOrEqual<U, Output = B1>,
+    N: IsGreaterOrEqual<L, Output = B1>,
+{
+    unsafe fn ptr(&self) -> *mut u32 {
+        self.ptr
+    }
+}
+
+pub trait Write: Sized + Reg {
+    type Lower: Unsigned;
+    type Upper: Unsigned;
+    type Val: Unsigned;
 
     /// The math to modify a field is as follows:
     /// ```not_rust
     /// (register.value & !field.mask) | (field.value << field.offset)
     /// ```
-    pub fn modify_field<
+    fn modify_field<
         M: Unsigned,
         O: Unsigned,
         V: Unsigned,
@@ -199,81 +219,99 @@ where
         self,
         _f: Field<M, O, V, FL, FU>,
     ) -> Register<
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+        <<Self::Val as BitAnd<<M as Not>::Output>>::Output as BitOr<
             <V as Shl<O>>::Output,
         >>::Output,
-        L,
-        U,
+        Self::Lower,
+        Self::Upper,
     >
     where
         V: IsLessOrEqual<FU, Output = B1>,
         V: IsGreaterOrEqual<FL, Output = B1>,
         V: Shl<O>,
         M: Not,
-        N: BitAnd<<M as Not>::Output>,
+        Self::Val: BitAnd<<M as Not>::Output>,
 
-        <N as BitAnd<<M as Not>::Output>>::Output: BitOr<<V as Shl<O>>::Output>,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+        <Self::Val as BitAnd<<M as Not>::Output>>::Output:
+            BitOr<<V as Shl<O>>::Output>,
+        <<Self::Val as BitAnd<<M as Not>::Output>>::Output as BitOr<
             <V as Shl<O>>::Output,
         >>::Output: Unsigned,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+        <<Self::Val as BitAnd<<M as Not>::Output>>::Output as BitOr<
             <V as Shl<O>>::Output,
-        >>::Output: IsLessOrEqual<U, Output = B1>,
-        <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
+        >>::Output: IsLessOrEqual<Self::Upper, Output = B1>,
+        <<Self::Val as BitAnd<<M as Not>::Output>>::Output as BitOr<
             <V as Shl<O>>::Output,
-        >>::Output: IsGreaterOrEqual<L, Output = B1>,
+        >>::Output: IsGreaterOrEqual<Self::Lower, Output = B1>,
     {
         unsafe {
-            *self.ptr = <<N as BitAnd<<M as Not>::Output>>::Output as BitOr<
-                <V as Shl<O>>::Output,
-            >>::Output::U32
+            *self.ptr() =
+                <<Self::Val as BitAnd<<M as Not>::Output>>::Output as BitOr<
+                    <V as Shl<O>>::Output,
+                >>::Output::U32
         };
         Register {
             val: BoundedU32::new(),
-            ptr: self.ptr,
+            ptr: unsafe { self.ptr() },
         }
     }
 
-    pub fn modify<V: Unsigned>(self) -> Register<V, L, U>
+    fn modify<V: Unsigned>(self) -> Register<V, Self::Lower, Self::Upper>
     where
-        V: IsLessOrEqual<U, Output = B1>,
-        V: IsGreaterOrEqual<L, Output = B1>,
+        V: IsLessOrEqual<Self::Upper, Output = B1>,
+        V: IsGreaterOrEqual<Self::Lower, Output = B1>,
     {
-        unsafe { *self.ptr = V::U32 };
+        unsafe { *self.ptr() = V::U32 };
         Register {
             val: BoundedU32::new(),
-            ptr: self.ptr,
+            ptr: unsafe { self.ptr() },
         }
     }
+}
+
+impl<N: Unsigned, L: Unsigned, U: Unsigned> Write for Register<N, L, U>
+where
+    N: IsLessOrEqual<U, Output = B1>,
+    N: IsGreaterOrEqual<L, Output = B1>,
+{
+    type Val = N;
+    type Lower = L;
+    type Upper = U;
+}
+
+pub trait Read {
+    type Val: Unsigned;
 
     /// The math to read a field is as follows:
     /// ```not_rust
     /// (register.value & field.mask) >> field.offset
     /// ```
-    pub fn read<
-        M: Unsigned,
-        O: Unsigned,
-        V: Unsigned,
-        FL: Unsigned,
-        FU: Unsigned,
-    >(
+    fn read<M: Unsigned, O: Unsigned, V: Unsigned, FL: Unsigned, FU: Unsigned>(
         &self,
         _f: Field<M, O, V, FL, FU>,
-    ) -> Field<M, O, <<N as BitAnd<M>>::Output as Shr<O>>::Output, FL, FU>
+    ) -> Field<M, O, <<Self::Val as BitAnd<M>>::Output as Shr<O>>::Output, FL, FU>
     where
         V: IsLessOrEqual<FU, Output = B1>,
         V: IsGreaterOrEqual<FL, Output = B1>,
-        N: BitAnd<M>,
-        <N as BitAnd<M>>::Output: Shr<O>,
+        Self::Val: BitAnd<M>,
+        <Self::Val as BitAnd<M>>::Output: Shr<O>,
 
-        <<N as BitAnd<M>>::Output as Shr<O>>::Output: Unsigned,
-        <<N as BitAnd<M>>::Output as Shr<O>>::Output:
+        <<Self::Val as BitAnd<M>>::Output as Shr<O>>::Output: Unsigned,
+        <<Self::Val as BitAnd<M>>::Output as Shr<O>>::Output:
             IsLessOrEqual<FU, Output = B1>,
-        <<N as BitAnd<M>>::Output as Shr<O>>::Output:
+        <<Self::Val as BitAnd<M>>::Output as Shr<O>>::Output:
             IsGreaterOrEqual<FL, Output = B1>,
     {
         Field::new()
     }
+}
+
+impl<N: Unsigned, L: Unsigned, U: Unsigned> Read for Register<N, L, U>
+where
+    N: IsLessOrEqual<U, Output = B1>,
+    N: IsGreaterOrEqual<L, Output = B1>,
+{
+    type Val = N;
 }
 
 #[cfg(test)]
