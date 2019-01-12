@@ -3,7 +3,8 @@ extern crate typenum;
 #[macro_use]
 extern crate registers;
 
-use typenum::consts::{U0, U1};
+use typenum::consts::{B1, U0, U1, U32, U8};
+use typenum::{IsGreaterOrEqual, IsLessOrEqual, Unsigned};
 
 use registers::read_write::With;
 
