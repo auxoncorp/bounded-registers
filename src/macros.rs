@@ -219,6 +219,8 @@ macro_rules! rw_fields {
             pub type Field<N> = F<op!(((U1 << $width) - U1) << $offset), $offset, N, U0, op!((U1 << $width) - U1)>;
 
             pub const Read: Field<U0> = Field::new();
+            pub const Clear: Field<U0> = Field::new();
+            pub const Set: Field<op!((U1 << $width) - U1)> = Field::new();
 
             #[allow(non_upper_case_globals)]
             #[allow(unused)]
@@ -245,6 +247,8 @@ macro_rules! rw_fields {
             pub type Field<N> = F<op!(((U1 << $width) - U1) << $offset), $offset, N, U0, op!((U1 << $width) - U1)>;
 
             pub const Read: Field<U0> = Field::new();
+            pub const Clear: Field<U0> = Field::new();
+            pub const Set: Field<op!((U1 << $width) - U1)> = Field::new();
         }
         rw_fields!($($rest)*);
     };
