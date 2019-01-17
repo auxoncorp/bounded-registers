@@ -90,6 +90,7 @@ macro_rules! register {
 #[doc(hidden)]
 macro_rules! fields {
     {
+        $(#[$outer:meta])*
         $name:ident WIDTH($width:ident) OFFSET($offset:ident) [ $($enums:tt)* ] $($rest:tt)*
     } => {
         #[allow(unused)]
@@ -99,19 +100,34 @@ macro_rules! fields {
 
             use super::*;
 
+            $(#[$outer])*
             pub type Field = F<op!(((U1 << $width) - U1) << $offset), $offset, op!((U1 << $width) - U1)>;
 
+            /// In order to read a field, an instance
+            /// of that field must be given to have access to its mask and offset. `Read`
+            /// can be used as an argument to `get_field` so one does not have to
+            /// construct an arbitrary one when doing a read.
             pub const Read: Field = Field::checked::<U0>();
+
+            /// A field whose value is `$field_max`.
+            /// Passing it to `modify` will set that field to its max value in the
+            /// register. This is useful particularly in the case of single-bit wide
+            /// fields.
             pub const Set: Field = Field::checked::<op!((U1 << $width) - U1)>();
+
+            /// A field whose value is zero. Passing
+            /// it to `modify` will clear that field in the register.
             pub const Clear: Field = Field::checked::<U0>();
 
+            /// Constants mapping the enum-like field names to values.
             enums!($($enums)*);
         }
 
         fields!($($rest)*);
     };
     {
-        $name:ident WIDTH($width:ident) OFFSET($offset:ident), $($rest:tt)*
+        $(#[$outer:meta])*
+        $name:ident WIDTH($width:ident) OFFSET($offset:ident) $($rest:tt)*
     } => {
         #[allow(unused)]
         #[allow(non_upper_case_globals)]
@@ -120,6 +136,7 @@ macro_rules! fields {
 
             use super::*;
 
+            $(#[$outer])*
             pub type Field = F<op!(((U1 << $width) - U1) << $offset), $offset, op!((U1 << $width) - U1)>;
 
             pub const Read: Field = Field::checked::<U0>();
@@ -129,6 +146,7 @@ macro_rules! fields {
 
         fields!($($rest)*);
     };
+    (, $($rest:tt)*) => (fields!($($rest)*););
     () => ()
 }
 
@@ -136,9 +154,14 @@ macro_rules! fields {
 #[doc(hidden)]
 macro_rules! enums {
     {
-        $( $name:ident = $val:ident),*
+        $(
+
+            $(#[$outer:meta])*
+            $name:ident = $val:ident
+        ),*
     } => {
         $(
+            $(#[$outer])*
             pub const $name: Field = Field::checked::<$val>();
         )*
     }
@@ -258,14 +281,17 @@ mod test {
         Status,
         RW,
         Fields [
+            /// Here I'm just testing that doc comments work.
             On WIDTH(U1) OFFSET(U0),
-            Dead WIDTH(U1) OFFSET(U1),
             Color WIDTH(U3) OFFSET(U2) [
+                /// In here too!
+                // Even with a bunch of lines.
                 Red = U1,
                 Blue = U2,
                 Green = U3,
                 Yellow = U4
-            ]
+            ],
+            Dead WIDTH(U1) OFFSET(U1)
         ]
     }
 
@@ -281,6 +307,8 @@ mod test {
         RNG,
         RO,
         Fields [
+            /// This field means the RNG is working on generating a
+            /// random number.
             Working WIDTH(U1) OFFSET(U0),
             Width WIDTH(U2) OFFSET(U1) [
                 Four = U0,
