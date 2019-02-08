@@ -7,5 +7,7 @@ extern crate type_bounds;
 #[macro_use]
 extern crate typenum;
 
+mod register;
+
 pub mod macros;
-pub mod register;
+pub use crate::register::*;

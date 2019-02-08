@@ -6,6 +6,54 @@ use typenum::{IsGreater, IsGreaterOrEqual, IsLessOrEqual, Unsigned};
 
 use type_bounds::num::runtime::Bounded;
 
+pub trait ReadOnlyRegister {
+    /// `get_field` takes a field and sets the value of that
+    /// field to its value in the register.
+    fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+        &self,
+        f: Field<M, O, U>,
+    ) -> Option<Field<M, O, U>>
+    where
+        U: IsGreater<U0, Output = B1>;
+
+    /// `read` returns the current state of the register as a `u32`.
+    fn read(&self) -> u32;
+}
+
+pub trait WriteOnlyRegister {
+    /// `modify` takes one or more fields, joined by `+`, and
+    /// sets those fields in the register, leaving the others
+    /// as they were.
+    fn modify<V: Positioned>(&mut self, val: V);
+
+    /// `write` sets the value of the whole register to the
+    /// given `u32` value.
+    fn write(&mut self, val: u32);
+}
+
+pub trait ReadWriteRegister {
+    /// `get_field` takes a field and sets the value of that
+    /// field to its value in the register.
+    fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+        &self,
+        f: Field<M, O, U>,
+    ) -> Option<Field<M, O, U>>
+    where
+        U: IsGreater<U0, Output = B1>;
+
+    /// `read` returns the current state of the register as a `u32`.
+    fn read(&self) -> u32;
+
+    /// `modify` takes one or more fields, joined by `+`, and
+    /// sets those fields in the register, leaving the others
+    /// as they were.
+    fn modify<V: Positioned>(&mut self, val: V);
+
+    /// `write` sets the value of the whole register to the
+    /// given `u32` value.
+    fn write(&mut self, val: u32);
+}
+
 /// A field in a register parameterized by its mask, offset, and upper
 /// bound. To construct a field, its `val` must be ⩽ `U::U32`.
 ///
@@ -65,8 +113,7 @@ where
     }
 }
 
-impl<M: Unsigned, O: Unsigned, U: Unsigned> PartialEq<Field<M, O, U>>
-    for Field<M, O, U>
+impl<M: Unsigned, O: Unsigned, U: Unsigned> PartialEq<Field<M, O, U>> for Field<M, O, U>
 where
     U: IsGreater<U0, Output = B1>,
 {
@@ -110,14 +157,8 @@ impl Positioned for FieldDisj {
 }
 
 // Add where both lhs and rhs are `Field`s.
-impl<
-        LM: Unsigned,
-        LO: Unsigned,
-        LU: Unsigned,
-        RM: Unsigned,
-        RO: Unsigned,
-        RU: Unsigned,
-    > Add<Field<RM, RO, RU>> for Field<LM, LO, LU>
+impl<LM: Unsigned, LO: Unsigned, LU: Unsigned, RM: Unsigned, RO: Unsigned, RU: Unsigned>
+    Add<Field<RM, RO, RU>> for Field<LM, LO, LU>
 where
     LU: IsGreater<U0, Output = B1>,
     RU: IsGreater<U0, Output = B1>,

@@ -42,6 +42,8 @@
 ///
 /// use typenum::consts::U1;
 ///
+/// use registers::ReadWriteRegister;
+///
 /// register! {
 ///     Status,
 ///     RW,
@@ -76,7 +78,7 @@ macro_rules! register {
         pub mod $name {
             use typenum::consts::*;
             use typenum::{Unsigned, IsGreater};
-            use $crate::register::{Field as F, Pointer, Positioned};
+            use $crate::{Field as F, Pointer, Positioned};
 
             mode!($mode);
 
@@ -171,6 +173,8 @@ macro_rules! enums {
 #[doc(hidden)]
 macro_rules! mode {
     (RO) => {
+        use $crate::ReadOnlyRegister;
+
         pub struct Register {
             ptr: *const u32,
         }
@@ -183,9 +187,12 @@ macro_rules! mode {
                 Self { ptr }
             }
 
+        }
+
+        impl $crate::ReadOnlyRegister for Register {
             /// `get_field` takes a field and sets the value of that
             /// field to its value in the register.
-            pub fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+            fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
                 &self,
                 f: F<M, O, U>,
             ) -> Option<F<M, O, U>>
@@ -196,12 +203,15 @@ macro_rules! mode {
             }
 
             /// `read` returns the current state of the register as a `u32`.
-            pub fn read(&self) -> u32 {
+            fn read(&self) -> u32 {
                 unsafe { *self.ptr }
             }
         }
     };
     (WO) => {
+
+        use $crate::WriteOnlyRegister;
+
         pub struct Register {
             ptr: *mut u32,
         }
@@ -213,22 +223,26 @@ macro_rules! mode {
                 Self { ptr }
             }
 
+        }
+
+        impl $crate::WriteOnlyRegister for Register {
             /// `modify` takes one or more fields, joined by `+`, and
             /// sets those fields in the register, leaving the others
             /// as they were.
-            pub fn modify<V: Positioned>(&mut self, val: V) {
+            fn modify<V: Positioned>(&mut self, val: V) {
                 unsafe { *self.ptr = *self.ptr | val.in_position() };
             }
 
             /// `write` sets the value of the whole register to the
             /// given `u32` value.
-            pub fn write(&mut self, val: u32) {
+            fn write(&mut self, val: u32) {
                 unsafe { *self.ptr = val };
             }
         }
 
     };
     (RW) => {
+
         pub struct Register {
             ptr: *mut u32,
         }
@@ -240,9 +254,12 @@ macro_rules! mode {
                 Self { ptr }
             }
 
+        }
+
+        impl $crate::ReadWriteRegister for Register {
             /// `get_field` takes a field and sets the value of that
             /// field to its value in the register.
-            pub fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+            fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
                 &self,
                 f: F<M, O, U>,
             ) -> Option<F<M, O, U>>
@@ -253,20 +270,20 @@ macro_rules! mode {
             }
 
             /// `read` returns the current state of the register as a `u32`.
-            pub fn read(&self) -> u32 {
+            fn read(&self) -> u32 {
                 unsafe { *self.ptr }
             }
 
             /// `modify` takes one or more fields, joined by `+`, and
             /// sets those fields in the register, leaving the others
             /// as they were.
-            pub fn modify<V: Positioned>(&mut self, val: V) {
+            fn modify<V: Positioned>(&mut self, val: V) {
                 unsafe { *self.ptr = *self.ptr | val.in_position() };
             }
 
             /// `write` sets the value of the whole register to the
             /// given `u32` value.
-            pub fn write(&mut self, val: u32) {
+            fn write(&mut self, val: u32) {
                 unsafe { *self.ptr = val };
             }
         }
@@ -276,6 +293,8 @@ macro_rules! mode {
 #[cfg(test)]
 mod test {
     use typenum::consts::U1;
+
+    use crate::{ReadOnlyRegister, ReadWriteRegister};
 
     register! {
         Status,
