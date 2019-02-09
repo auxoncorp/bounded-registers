@@ -173,20 +173,16 @@ macro_rules! enums {
 #[doc(hidden)]
 macro_rules! mode {
     (RO) => {
-        use $crate::ReadOnlyRegister;
-
         pub struct Register {
             ptr: *const u32,
         }
 
         impl Register {
-
             /// `new` constructs a read-only register around the given
             /// pointer.
             pub fn new(ptr: *const u32) -> Self {
                 Self { ptr }
             }
-
         }
 
         impl $crate::ReadOnlyRegister for Register {
@@ -209,9 +205,6 @@ macro_rules! mode {
         }
     };
     (WO) => {
-
-        use $crate::WriteOnlyRegister;
-
         pub struct Register {
             ptr: *mut u32,
         }
@@ -219,10 +212,9 @@ macro_rules! mode {
         impl Register {
             /// `new` constructs a write-only register around the
             /// given pointer.
-            pub fn new(ptr: mut u32) -> Self {
+            pub fn new(ptr: *mut u32) -> Self {
                 Self { ptr }
             }
-
         }
 
         impl $crate::WriteOnlyRegister for Register {
@@ -239,10 +231,8 @@ macro_rules! mode {
                 unsafe { *self.ptr = val };
             }
         }
-
     };
     (RW) => {
-
         pub struct Register {
             ptr: *mut u32,
         }
@@ -253,7 +243,6 @@ macro_rules! mode {
             pub fn new(ptr: *mut u32) -> Self {
                 Self { ptr }
             }
-
         }
 
         impl $crate::ReadWriteRegister for Register {
