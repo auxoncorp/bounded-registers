@@ -80,6 +80,8 @@ macro_rules! register {
             use typenum::{Unsigned, IsGreater};
             use $crate::{Field as F, Pointer, Positioned};
 
+            use core::ptr;
+
             mode!($mode);
 
             fields!($($fields)*);
@@ -173,15 +175,14 @@ macro_rules! enums {
 #[doc(hidden)]
 macro_rules! mode {
     (RO) => {
-        pub struct Register {
-            ptr: *const u32,
-        }
+        #[repr(C)]
+        pub struct Register(*const u32);
 
         impl Register {
             /// `new` constructs a read-only register around the given
             /// pointer.
             pub fn new(ptr: *const u32) -> Self {
-                Self { ptr }
+                Self(ptr)
             }
         }
 
@@ -195,18 +196,20 @@ macro_rules! mode {
             where
                 U: IsGreater<U0, Output = B1>,
             {
-                f.set((unsafe { *self.ptr } & M::U32) >> O::U32)
+                f.set(
+                    (unsafe { ptr::read_volatile(self.0) } & M::U32) >> O::U32,
+                )
             }
 
             /// `read` returns the current state of the register as a `u32`.
             fn read(&self) -> u32 {
-                unsafe { *self.ptr }
+                unsafe { ptr::read_volatile(self.0) }
             }
 
             /// `extract` pulls the state of a register out into a wrapped
             /// read-only register.
             fn extract(&self) -> $crate::ReadOnlyCopy {
-                $crate::ReadOnlyCopy(unsafe { *self.ptr })
+                $crate::ReadOnlyCopy(unsafe { ptr::read_volatile(self.0) })
             }
 
             /// `is_set` takes a field and returns true if that field's value
@@ -219,32 +222,33 @@ macro_rules! mode {
             where
                 U: IsGreater<U0, Output = B1>,
             {
-                ((unsafe { *self.ptr } & M::U32) >> O::U32) == U::U32
+                ((unsafe { ptr::read_volatile(self.0) } & M::U32) >> O::U32)
+                    == U::U32
             }
 
             /// `matches_any` returns whether or not any of the given fields
             /// match those fields values inside the register.
             fn matches_any<V: Positioned>(&self, val: V) -> bool {
-                (val.in_position() & unsafe { *self.ptr }) != 0
+                (val.in_position() & unsafe { ptr::read_volatile(self.0) }) != 0
             }
 
             /// `matches_all` returns whether or not all of the given fields
             /// match those fields values inside the register.
             fn matches_all<V: Positioned>(&self, val: V) -> bool {
-                (val.in_position() & unsafe { *self.ptr }) == val.in_position()
+                (val.in_position() & unsafe { ptr::read_volatile(self.0) })
+                    == val.in_position()
             }
         }
     };
     (WO) => {
-        pub struct Register {
-            ptr: *mut u32,
-        }
+        #[repr(C)]
+        pub struct Register(*mut u32);
 
         impl Register {
             /// `new` constructs a write-only register around the
             /// given pointer.
             pub fn new(ptr: *mut u32) -> Self {
-                Self { ptr }
+                Self(ptr)
             }
         }
 
@@ -253,26 +257,31 @@ macro_rules! mode {
             /// sets those fields in the register, leaving the others
             /// as they were.
             fn modify<V: Positioned>(&mut self, val: V) {
-                unsafe { *self.ptr = *self.ptr | val.in_position() };
+                unsafe {
+                    ptr::write_volatile(
+                        self.0,
+                        (ptr::read_volatile(self.0) & !val.mask())
+                            | val.in_position(),
+                    );
+                };
             }
 
             /// `write` sets the value of the whole register to the
             /// given `u32` value.
             fn write(&mut self, val: u32) {
-                unsafe { *self.ptr = val };
+                unsafe { ptr::write_volatile(self.0, val) };
             }
         }
     };
     (RW) => {
-        pub struct Register {
-            ptr: *mut u32,
-        }
+        #[repr(C)]
+        pub struct Register(*mut u32);
 
         impl Register {
             /// `new` constructs a read-write register around the
             /// given pointer.
             pub fn new(ptr: *mut u32) -> Self {
-                Self { ptr }
+                Self(ptr)
             }
         }
 
@@ -286,18 +295,20 @@ macro_rules! mode {
             where
                 U: IsGreater<U0, Output = B1>,
             {
-                f.set(unsafe { (*self.ptr & M::U32) >> O::U32 })
+                f.set(
+                    (unsafe { ptr::read_volatile(self.0) } & M::U32) >> O::U32,
+                )
             }
 
             /// `read` returns the current state of the register as a `u32`.
             fn read(&self) -> u32 {
-                unsafe { *self.ptr }
+                unsafe { ptr::read_volatile(self.0) }
             }
 
             /// `extract` pulls the state of a register out into a wrapped
             /// read-only register.
             fn extract(&self) -> $crate::ReadOnlyCopy {
-                $crate::ReadOnlyCopy(unsafe { *self.ptr })
+                $crate::ReadOnlyCopy(unsafe { ptr::read_volatile(self.0) })
             }
 
             /// `is_set` takes a field and returns true if that field's value
@@ -310,19 +321,21 @@ macro_rules! mode {
             where
                 U: IsGreater<U0, Output = B1>,
             {
-                ((unsafe { *self.ptr } & M::U32) >> O::U32) == U::U32
+                ((unsafe { ptr::read_volatile(self.0) } & M::U32) >> O::U32)
+                    == U::U32
             }
 
             /// `matches_any` returns whether or not any of the given fields
             /// match those fields values inside the register.
             fn matches_any<V: Positioned>(&self, val: V) -> bool {
-                (val.in_position() & unsafe { *self.ptr }) != 0
+                (val.in_position() & unsafe { ptr::read_volatile(self.0) }) != 0
             }
 
             /// `matches_all` returns whether or not all of the given fields
             /// match those fields values inside the register.
             fn matches_all<V: Positioned>(&self, val: V) -> bool {
-                (val.in_position() & unsafe { *self.ptr }) == val.in_position()
+                (val.in_position() & unsafe { ptr::read_volatile(self.0) })
+                    == val.in_position()
             }
 
             /// `modify` takes one or more fields, joined by `+`, and
@@ -330,14 +343,18 @@ macro_rules! mode {
             /// as they were.
             fn modify<V: Positioned>(&mut self, val: V) {
                 unsafe {
-                    *self.ptr = (*self.ptr & !val.mask()) | val.in_position()
+                    ptr::write_volatile(
+                        self.0,
+                        (ptr::read_volatile(self.0) & !val.mask())
+                            | val.in_position(),
+                    );
                 };
             }
 
             /// `write` sets the value of the whole register to the
             /// given `u32` value.
             fn write(&mut self, val: u32) {
-                unsafe { *self.ptr = val };
+                unsafe { ptr::write_volatile(self.0, val) };
             }
         }
     };
