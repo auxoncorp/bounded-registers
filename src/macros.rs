@@ -195,12 +195,43 @@ macro_rules! mode {
             where
                 U: IsGreater<U0, Output = B1>,
             {
-                f.set(unsafe { (*self.ptr & M::U32) >> O::U32 })
+                f.set((unsafe { *self.ptr } & M::U32) >> O::U32)
             }
 
             /// `read` returns the current state of the register as a `u32`.
             fn read(&self) -> u32 {
                 unsafe { *self.ptr }
+            }
+
+            /// `extract` pulls the state of a register out into a wrapped
+            /// read-only register.
+            fn extract(&self) -> $crate::ReadOnlyCopy {
+                $crate::ReadOnlyCopy(unsafe { *self.ptr })
+            }
+
+            /// `is_set` takes a field and returns true if that field's value
+            /// is equal to its upper bound or not. This is of particular use
+            /// in single-bit fields.
+            fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(
+                &self,
+                f: F<M, O, U>,
+            ) -> bool
+            where
+                U: IsGreater<U0, Output = B1>,
+            {
+                ((unsafe { *self.ptr } & M::U32) >> O::U32) == U::U32
+            }
+
+            /// `matches_any` returns whether or not any of the given fields
+            /// match those fields values inside the register.
+            fn matches_any<V: Positioned>(&self, val: V) -> bool {
+                (val.in_position() & unsafe { *self.ptr }) != 0
+            }
+
+            /// `matches_all` returns whether or not all of the given fields
+            /// match those fields values inside the register.
+            fn matches_all<V: Positioned>(&self, val: V) -> bool {
+                (val.in_position() & unsafe { *self.ptr }) == val.in_position()
             }
         }
     };
@@ -263,11 +294,44 @@ macro_rules! mode {
                 unsafe { *self.ptr }
             }
 
+            /// `extract` pulls the state of a register out into a wrapped
+            /// read-only register.
+            fn extract(&self) -> $crate::ReadOnlyCopy {
+                $crate::ReadOnlyCopy(unsafe { *self.ptr })
+            }
+
+            /// `is_set` takes a field and returns true if that field's value
+            /// is equal to its upper bound or not. This is of particular use
+            /// in single-bit fields.
+            fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(
+                &self,
+                f: F<M, O, U>,
+            ) -> bool
+            where
+                U: IsGreater<U0, Output = B1>,
+            {
+                ((unsafe { *self.ptr } & M::U32) >> O::U32) == U::U32
+            }
+
+            /// `matches_any` returns whether or not any of the given fields
+            /// match those fields values inside the register.
+            fn matches_any<V: Positioned>(&self, val: V) -> bool {
+                (val.in_position() & unsafe { *self.ptr }) != 0
+            }
+
+            /// `matches_all` returns whether or not all of the given fields
+            /// match those fields values inside the register.
+            fn matches_all<V: Positioned>(&self, val: V) -> bool {
+                (val.in_position() & unsafe { *self.ptr }) == val.in_position()
+            }
+
             /// `modify` takes one or more fields, joined by `+`, and
             /// sets those fields in the register, leaving the others
             /// as they were.
             fn modify<V: Positioned>(&mut self, val: V) {
-                unsafe { *self.ptr = *self.ptr | val.in_position() };
+                unsafe {
+                    *self.ptr = (*self.ptr & !val.mask()) | val.in_position()
+                };
             }
 
             /// `write` sets the value of the whole register to the
@@ -291,6 +355,7 @@ mod test {
         Fields [
             /// Here I'm just testing that doc comments work.
             On WIDTH(U1) OFFSET(U0),
+            Dead WIDTH(U1) OFFSET(U1),
             Color WIDTH(U3) OFFSET(U2) [
                 /// In here too!
                 // Even with a bunch of lines.
@@ -299,7 +364,6 @@ mod test {
                 Green = U3,
                 Yellow = U4
             ],
-            Dead WIDTH(U1) OFFSET(U1)
         ]
     }
 
@@ -309,6 +373,26 @@ mod test {
         let mut reg = Status::Register::new(reg_ptr);
         reg.modify(Status::Dead::Field::checked::<U1>());
         assert_eq!(unsafe { *reg_ptr }, 2);
+    }
+
+    #[test]
+    fn test_matches_any() {
+        let reg_ptr = &mut 0_u32 as *mut u32;
+        let mut reg = Status::Register::new(reg_ptr);
+        reg.modify(Status::Dead::Set);
+        assert!(reg.matches_any(Status::On::Set + Status::Dead::Set));
+        reg.modify(Status::Dead::Clear);
+        assert!(!reg.matches_any(Status::On::Set + Status::Dead::Set));
+    }
+
+    #[test]
+    fn test_matches_all() {
+        let reg_ptr = &mut 0_u32 as *mut u32;
+        let mut reg = Status::Register::new(reg_ptr);
+        reg.modify(Status::Dead::Set + Status::On::Set);
+        assert!(reg.matches_all(Status::On::Set + Status::Dead::Set));
+        reg.modify(Status::Dead::Clear);
+        assert!(!reg.matches_all(Status::On::Set + Status::Dead::Set));
     }
 
     register! {
