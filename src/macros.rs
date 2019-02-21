@@ -182,7 +182,7 @@ macro_rules! mode {
             /// `new` constructs a read-only register around the given
             /// pointer.
             pub fn new(ptr: *const u32) -> Self {
-                Self(ptr)
+                Register(ptr)
             }
         }
 
@@ -248,7 +248,7 @@ macro_rules! mode {
             /// `new` constructs a write-only register around the
             /// given pointer.
             pub fn new(ptr: *mut u32) -> Self {
-                Self(ptr)
+                Register(ptr)
             }
         }
 
@@ -281,7 +281,7 @@ macro_rules! mode {
             /// `new` constructs a read-write register around the
             /// given pointer.
             pub fn new(ptr: *mut u32) -> Self {
-                Self(ptr)
+                Register(ptr)
             }
         }
 
