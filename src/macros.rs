@@ -250,7 +250,7 @@ macro_rules! mode {
     };
     (WO) => {
         #[repr(C)]
-        pub struct Register(*mut u32);
+        pub struct Register(u32);
 
         impl Register {
             /// `new` constructs a write-only register around the
