@@ -60,10 +60,9 @@
 /// }
 ///
 /// fn main() {
-///     let reg_ptr = &mut 0_u32 as *mut u32;
-///     let mut reg = Status::Register::new(reg_ptr);
+///     let mut reg = Status::Register::new(0);
 ///     reg.modify(Status::Dead::Field::checked::<U1>());
-///     assert_eq!(unsafe { *reg_ptr }, 2);
+///     assert_eq!(reg.read(), 2);
 /// }
 /// ```
 #[macro_export]
@@ -176,13 +175,13 @@ macro_rules! enums {
 macro_rules! mode {
     (RO) => {
         #[repr(C)]
-        pub struct Register(*const u32);
+        pub struct Register(u32);
 
         impl Register {
             /// `new` constructs a read-only register around the given
             /// pointer.
-            pub fn new(ptr: *const u32) -> Self {
-                Register(ptr)
+            pub fn new(init: u32) -> Self {
+                Register(init)
             }
         }
 
@@ -197,19 +196,23 @@ macro_rules! mode {
                 U: IsGreater<U0, Output = B1>,
             {
                 f.set(
-                    (unsafe { ptr::read_volatile(self.0) } & M::U32) >> O::U32,
+                    (unsafe { ptr::read_volatile(&self.0 as *const u32) }
+                        & M::U32)
+                        >> O::U32,
                 )
             }
 
             /// `read` returns the current state of the register as a `u32`.
             fn read(&self) -> u32 {
-                unsafe { ptr::read_volatile(self.0) }
+                unsafe { ptr::read_volatile(&self.0 as *const u32) }
             }
 
             /// `extract` pulls the state of a register out into a wrapped
             /// read-only register.
             fn extract(&self) -> $crate::ReadOnlyCopy {
-                $crate::ReadOnlyCopy(unsafe { ptr::read_volatile(self.0) })
+                $crate::ReadOnlyCopy(unsafe {
+                    ptr::read_volatile(&self.0 as *const u32)
+                })
             }
 
             /// `is_set` takes a field and returns true if that field's value
@@ -222,20 +225,25 @@ macro_rules! mode {
             where
                 U: IsGreater<U0, Output = B1>,
             {
-                ((unsafe { ptr::read_volatile(self.0) } & M::U32) >> O::U32)
+                ((unsafe { ptr::read_volatile(&self.0 as *const u32) }
+                    & M::U32)
+                    >> O::U32)
                     == U::U32
             }
 
             /// `matches_any` returns whether or not any of the given fields
             /// match those fields values inside the register.
             fn matches_any<V: Positioned>(&self, val: V) -> bool {
-                (val.in_position() & unsafe { ptr::read_volatile(self.0) }) != 0
+                (val.in_position()
+                    & unsafe { ptr::read_volatile(&self.0 as *const u32) })
+                    != 0
             }
 
             /// `matches_all` returns whether or not all of the given fields
             /// match those fields values inside the register.
             fn matches_all<V: Positioned>(&self, val: V) -> bool {
-                (val.in_position() & unsafe { ptr::read_volatile(self.0) })
+                (val.in_position()
+                    & unsafe { ptr::read_volatile(&self.0 as *const u32) })
                     == val.in_position()
             }
         }
@@ -247,8 +255,8 @@ macro_rules! mode {
         impl Register {
             /// `new` constructs a write-only register around the
             /// given pointer.
-            pub fn new(ptr: *mut u32) -> Self {
-                Register(ptr)
+            pub fn new(init: u32) -> Self {
+                Register(init)
             }
         }
 
@@ -259,8 +267,9 @@ macro_rules! mode {
             fn modify<V: Positioned>(&mut self, val: V) {
                 unsafe {
                     ptr::write_volatile(
-                        self.0,
-                        (ptr::read_volatile(self.0) & !val.mask())
+                        &mut self.0 as *mut u32,
+                        (ptr::read_volatile(&self.0 as *const u32)
+                            & !val.mask())
                             | val.in_position(),
                     );
                 };
@@ -269,19 +278,19 @@ macro_rules! mode {
             /// `write` sets the value of the whole register to the
             /// given `u32` value.
             fn write(&mut self, val: u32) {
-                unsafe { ptr::write_volatile(self.0, val) };
+                unsafe { ptr::write_volatile(&mut self.0 as *mut u32, val) };
             }
         }
     };
     (RW) => {
         #[repr(C)]
-        pub struct Register(*mut u32);
+        pub struct Register(u32);
 
         impl Register {
             /// `new` constructs a read-write register around the
             /// given pointer.
-            pub fn new(ptr: *mut u32) -> Self {
-                Register(ptr)
+            pub fn new(init: u32) -> Self {
+                Register(init)
             }
         }
 
@@ -296,19 +305,23 @@ macro_rules! mode {
                 U: IsGreater<U0, Output = B1>,
             {
                 f.set(
-                    (unsafe { ptr::read_volatile(self.0) } & M::U32) >> O::U32,
+                    (unsafe { ptr::read_volatile(&self.0 as *const u32) }
+                        & M::U32)
+                        >> O::U32,
                 )
             }
 
             /// `read` returns the current state of the register as a `u32`.
             fn read(&self) -> u32 {
-                unsafe { ptr::read_volatile(self.0) }
+                unsafe { ptr::read_volatile(&self.0 as *const u32) }
             }
 
             /// `extract` pulls the state of a register out into a wrapped
             /// read-only register.
             fn extract(&self) -> $crate::ReadOnlyCopy {
-                $crate::ReadOnlyCopy(unsafe { ptr::read_volatile(self.0) })
+                $crate::ReadOnlyCopy(unsafe {
+                    ptr::read_volatile(&self.0 as *const u32)
+                })
             }
 
             /// `is_set` takes a field and returns true if that field's value
@@ -321,20 +334,25 @@ macro_rules! mode {
             where
                 U: IsGreater<U0, Output = B1>,
             {
-                ((unsafe { ptr::read_volatile(self.0) } & M::U32) >> O::U32)
+                ((unsafe { ptr::read_volatile(&self.0 as *const u32) }
+                    & M::U32)
+                    >> O::U32)
                     == U::U32
             }
 
             /// `matches_any` returns whether or not any of the given fields
             /// match those fields values inside the register.
             fn matches_any<V: Positioned>(&self, val: V) -> bool {
-                (val.in_position() & unsafe { ptr::read_volatile(self.0) }) != 0
+                (val.in_position()
+                    & unsafe { ptr::read_volatile(&self.0 as *const u32) })
+                    != 0
             }
 
             /// `matches_all` returns whether or not all of the given fields
             /// match those fields values inside the register.
             fn matches_all<V: Positioned>(&self, val: V) -> bool {
-                (val.in_position() & unsafe { ptr::read_volatile(self.0) })
+                (val.in_position()
+                    & unsafe { ptr::read_volatile(&self.0 as *const u32) })
                     == val.in_position()
             }
 
@@ -344,8 +362,9 @@ macro_rules! mode {
             fn modify<V: Positioned>(&mut self, val: V) {
                 unsafe {
                     ptr::write_volatile(
-                        self.0,
-                        (ptr::read_volatile(self.0) & !val.mask())
+                        &mut self.0 as *mut u32,
+                        (ptr::read_volatile(&self.0 as *const u32)
+                            & !val.mask())
                             | val.in_position(),
                     );
                 };
@@ -354,7 +373,7 @@ macro_rules! mode {
             /// `write` sets the value of the whole register to the
             /// given `u32` value.
             fn write(&mut self, val: u32) {
-                unsafe { ptr::write_volatile(self.0, val) };
+                unsafe { ptr::write_volatile(&mut self.0 as *mut u32, val) };
             }
         }
     };
@@ -386,16 +405,14 @@ mod test {
 
     #[test]
     fn test_rw_macro() {
-        let reg_ptr = &mut 0_u32 as *mut u32;
-        let mut reg = Status::Register::new(reg_ptr);
+        let mut reg = Status::Register::new(0);
         reg.modify(Status::Dead::Field::checked::<U1>());
-        assert_eq!(unsafe { *reg_ptr }, 2);
+        assert_eq!(reg.read(), 2);
     }
 
     #[test]
     fn test_matches_any() {
-        let reg_ptr = &mut 0_u32 as *mut u32;
-        let mut reg = Status::Register::new(reg_ptr);
+        let mut reg = Status::Register::new(0);
         reg.modify(Status::Dead::Set);
         assert!(reg.matches_any(Status::On::Set + Status::Dead::Set));
         reg.modify(Status::Dead::Clear);
@@ -404,8 +421,7 @@ mod test {
 
     #[test]
     fn test_matches_all() {
-        let reg_ptr = &mut 0_u32 as *mut u32;
-        let mut reg = Status::Register::new(reg_ptr);
+        let mut reg = Status::Register::new(0);
         reg.modify(Status::Dead::Set + Status::On::Set);
         assert!(reg.matches_all(Status::On::Set + Status::Dead::Set));
         reg.modify(Status::Dead::Clear);
@@ -429,17 +445,15 @@ mod test {
 
     #[test]
     fn test_ro_macro() {
-        let ptr = &mut 4_u32 as *mut u32;
-        let reg = RNG::Register::new(ptr);
+        let reg = RNG::Register::new(4);
         let width = reg.get_field(RNG::Width::Read).unwrap();
         assert_eq!(width, RNG::Width::Sixteen);
     }
 
     #[test]
     fn test_field_disj() {
-        let reg_ptr = &mut 0_u32 as *mut u32;
-        let mut reg = Status::Register::new(reg_ptr);
+        let mut reg = Status::Register::new(0);
         reg.modify(Status::Dead::Set + Status::Color::Blue + Status::On::Clear);
-        assert_eq!(unsafe { *reg_ptr }, 10);
+        assert_eq!(reg.read(), 10);
     }
 }
