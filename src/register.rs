@@ -18,6 +18,28 @@ pub trait ReadOnlyRegister {
 
     /// `read` returns the current state of the register as a `u32`.
     fn read(&self) -> u32;
+
+    /// `extract` pulls the state of a register out into a wrapped
+    /// read-only register.
+    fn extract(&self) -> ReadOnlyCopy;
+
+    /// `is_set` takes a field and returns true if that field's value
+    /// is equal to its upper bound or not. This is for particular use
+    /// in single-bit fields.
+    fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(
+        &self,
+        f: Field<M, O, U>,
+    ) -> bool
+    where
+        U: IsGreater<U0, Output = B1>;
+
+    /// `matches_any` returns whether or not any of the given fields
+    /// match those fields values inside the register.
+    fn matches_any<V: Positioned>(&self, val: V) -> bool;
+
+    /// `matches_all` returns whether or not all of the given fields
+    /// match those fields values inside the register.
+    fn matches_all<V: Positioned>(&self, val: V) -> bool;
 }
 
 pub trait WriteOnlyRegister {
@@ -44,6 +66,28 @@ pub trait ReadWriteRegister {
     /// `read` returns the current state of the register as a `u32`.
     fn read(&self) -> u32;
 
+    /// `extract` pulls the state of a register out into a wrapped
+    /// read-only register.
+    fn extract(&self) -> ReadOnlyCopy;
+
+    /// `is_set` takes a field and returns true if that field's value
+    /// is equal to its upper bound or not. This is for particular use
+    /// in single-bit fields.
+    fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(
+        &self,
+        f: Field<M, O, U>,
+    ) -> bool
+    where
+        U: IsGreater<U0, Output = B1>;
+
+    /// `matches_any` returns whether or not any of the given fields
+    /// match those fields values inside the register.
+    fn matches_any<V: Positioned>(&self, val: V) -> bool;
+
+    /// `matches_all` returns whether or not all of the given fields
+    /// match those fields values inside the register.
+    fn matches_all<V: Positioned>(&self, val: V) -> bool;
+
     /// `modify` takes one or more fields, joined by `+`, and
     /// sets those fields in the register, leaving the others
     /// as they were.
@@ -52,6 +96,58 @@ pub trait ReadWriteRegister {
     /// `write` sets the value of the whole register to the
     /// given `u32` value.
     fn write(&mut self, val: u32);
+}
+
+pub struct ReadOnlyCopy(pub u32);
+
+impl ReadOnlyRegister for ReadOnlyCopy {
+    /// `get_field` takes a field and sets the value of that
+    /// field to its value in the register.
+    fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+        &self,
+        f: Field<M, O, U>,
+    ) -> Option<Field<M, O, U>>
+    where
+        U: IsGreater<U0, Output = B1>,
+    {
+        f.set((self.0 & M::U32) >> O::U32)
+    }
+
+    /// `read` returns the current state of the register as a `u32`.
+    fn read(&self) -> u32 {
+        self.0
+    }
+
+    /// `extract` pulls the state of a register out into a wrapped
+    /// read-only register.
+    fn extract(&self) -> ReadOnlyCopy {
+        ReadOnlyCopy(self.0)
+    }
+
+    /// `is_set` takes a field and returns true if that field's value
+    /// is equal to its upper bound or not. This is of particular use
+    /// in single-bit fields.
+    fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(
+        &self,
+        _: Field<M, O, U>,
+    ) -> bool
+    where
+        U: IsGreater<U0, Output = B1>,
+    {
+        ((self.0 & M::U32) >> O::U32) == U::U32
+    }
+
+    /// `matches_any` returns whether or not any of the given fields
+    /// match those fields values inside the register.
+    fn matches_any<V: Positioned>(&self, val: V) -> bool {
+        (val.in_position() & self.0) != 0
+    }
+
+    /// `matches_all` returns whether or not all of the given fields
+    /// match those fields values inside the register.
+    fn matches_all<V: Positioned>(&self, val: V) -> bool {
+        (val.in_position() & self.0) == val.in_position()
+    }
 }
 
 /// A field in a register parameterized by its mask, offset, and upper
@@ -111,9 +207,16 @@ where
     pub fn val(&self) -> u32 {
         self.val.val
     }
+
+    /// `is_set` returns whether or not the field's val is equal to
+    /// its upper bound.
+    pub fn is_set(&self) -> bool {
+        self.val.val == U::U32
+    }
 }
 
-impl<M: Unsigned, O: Unsigned, U: Unsigned> PartialEq<Field<M, O, U>> for Field<M, O, U>
+impl<M: Unsigned, O: Unsigned, U: Unsigned> PartialEq<Field<M, O, U>>
+    for Field<M, O, U>
 where
     U: IsGreater<U0, Output = B1>,
 {
@@ -132,6 +235,7 @@ where
 /// when simply passing one `Field`, `in_position` will shift the
 /// `Field`'s value right by `O`.
 pub trait Positioned {
+    fn mask(&self) -> u32;
     fn in_position(&self) -> u32;
 }
 
@@ -139,6 +243,11 @@ impl<M: Unsigned, O: Unsigned, U: Unsigned> Positioned for Field<M, O, U>
 where
     U: IsGreater<U0, Output = B1>,
 {
+    /// The mask for this positioned value.
+    fn mask(&self) -> u32 {
+        M::U32
+    }
+
     /// Presents a value as its register-relative value.
     fn in_position(&self) -> u32 {
         self.val() << O::U32
@@ -148,17 +257,30 @@ where
 /// `FieldDisj` is short for _Field Disjunction_. It is a type which
 /// constitutes the intermediate result of the summing, or disjunct of
 /// two fields. It is not a type which one should use directly.
-pub struct FieldDisj(u32);
+pub struct FieldDisj {
+    mask: u32,
+    val: u32,
+}
 
 impl Positioned for FieldDisj {
+    fn mask(&self) -> u32 {
+        self.mask
+    }
+
     fn in_position(&self) -> u32 {
-        self.0
+        self.val
     }
 }
 
 // Add where both lhs and rhs are `Field`s.
-impl<LM: Unsigned, LO: Unsigned, LU: Unsigned, RM: Unsigned, RO: Unsigned, RU: Unsigned>
-    Add<Field<RM, RO, RU>> for Field<LM, LO, LU>
+impl<
+        LM: Unsigned,
+        LO: Unsigned,
+        LU: Unsigned,
+        RM: Unsigned,
+        RO: Unsigned,
+        RU: Unsigned,
+    > Add<Field<RM, RO, RU>> for Field<LM, LO, LU>
 where
     LU: IsGreater<U0, Output = B1>,
     RU: IsGreater<U0, Output = B1>,
@@ -166,7 +288,10 @@ where
     type Output = FieldDisj;
 
     fn add(self, rhs: Field<RM, RO, RU>) -> Self::Output {
-        FieldDisj((self.val() << LO::U32) | (rhs.val() << RO::U32))
+        FieldDisj {
+            val: (self.val() << LO::U32) | (rhs.val() << RO::U32),
+            mask: LM::U32 | RM::U32,
+        }
     }
 }
 
@@ -179,7 +304,10 @@ where
     type Output = FieldDisj;
 
     fn add(self, rhs: FieldDisj) -> Self::Output {
-        FieldDisj((self.val() << O::U32) | rhs.0)
+        FieldDisj {
+            val: (self.val() << O::U32) | rhs.val,
+            mask: M::U32 | rhs.mask(),
+        }
     }
 }
 
@@ -192,7 +320,10 @@ where
     type Output = FieldDisj;
 
     fn add(self, rhs: Field<M, O, U>) -> Self::Output {
-        FieldDisj(self.0 | (rhs.val() << O::U32))
+        FieldDisj {
+            val: self.val | (rhs.val() << O::U32),
+            mask: self.mask | M::U32,
+        }
     }
 }
 
