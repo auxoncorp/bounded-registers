@@ -5,5 +5,5 @@ authors = ["Dan Pittman <dan@auxon.io>"]
 edition = "2018"
 
 [dependencies]
-typenum = {git = "ssh://github.com/auxoncorp/typenum"}
+typenum = "1.10"
 type_bounds = {git = "ssh://github.com/auxoncorp/type-bounds"}
