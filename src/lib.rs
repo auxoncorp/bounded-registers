@@ -5,8 +5,8 @@
 #[macro_use]
 extern crate typenum;
 
-mod register;
-
 pub mod bounds;
 pub mod macros;
+
+mod register;
 pub use crate::register::*;

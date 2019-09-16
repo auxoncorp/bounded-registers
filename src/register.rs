@@ -200,22 +200,6 @@ where
         })
     }
 
-    /// `checked` is a compile-time checked constructor for a
-    /// `Field`. Its `V` parameter must be ⩽ `U`; if it is not, the
-    /// program will fail to typecheck.
-    pub fn checked<V: Unsigned>() -> Self
-    where
-        V: IsLessOrEqual<U, Output = True>,
-        V: IsGreaterOrEqual<U0, Output = True>,
-        V: ReifyTo<W>,
-    {
-        Self {
-            val: Bounded::checked::<V>(),
-            _offset: PhantomData,
-            _mask: PhantomData,
-        }
-    }
-
     /// `val` retrieves the value from the field.
     pub fn val(&self) -> W {
         self.val.val
@@ -227,6 +211,36 @@ where
         self.val.val == U::reify()
     }
 }
+
+macro_rules! checked {
+    ($num_type:ty) => {
+        impl<M: Unsigned, O: Unsigned, U: Unsigned> Field<$num_type, M, O, U>
+        where
+            U: IsGreater<U0, Output = True>,
+        {
+            /// `checked` is a compile-time checked constructor for a
+            /// `Field`. Its `V` parameter must be ⩽ `U`; if it is not, the
+            /// program will fail to typecheck.
+            pub const fn checked<V: Unsigned>() -> Self
+            where
+                V: IsLessOrEqual<U, Output = True>,
+                V: IsGreaterOrEqual<U0, Output = True>,
+            {
+                Self {
+                    val: Bounded::<$num_type, U0, U>::checked::<V>(),
+                    _offset: PhantomData,
+                    _mask: PhantomData,
+                }
+            }
+        }
+    };
+}
+
+checked!(u8);
+checked!(u16);
+checked!(u32);
+checked!(u64);
+checked!(usize);
 
 impl<W, M: Unsigned, O: Unsigned, U: Unsigned> PartialEq<Field<W, M, O, U>> for Field<W, M, O, U>
 where

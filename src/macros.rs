@@ -82,7 +82,7 @@ macro_rules! register {
             use typenum::{Unsigned, IsGreater};
             use $crate::{Field as F, Pointer, Positioned};
 
-            use $crate::bounds::{Bounded, ReifyTo};
+            use $crate::bounds::{ReifyTo, Reifier};
 
             use core::ptr;
 
@@ -110,40 +110,38 @@ macro_rules! fields {
 
             use super::*;
 
+            type _Offset = $offset;
+            type _FieldWidth = $width;
+
             $(#[$outer])*
             pub type Field = F<super::Width, op!(((U1 << $width) - U1) << $offset), $offset, op!((U1 << $width) - U1)>;
 
-            /// In order to read a field, an instance
-            /// of that field must be given to have access to its mask and offset. `Read`
-            /// can be used as an argument to `get_field` so one does not have to
-            /// construct an arbitrary one when doing a read.
-            pub const Read: Field = F {
-                val: Bounded {
-                    val: 0,
-                    _lower: PhantomData,
-                    _upper: PhantomData,
-                },
-                _mask: PhantomData,
-                _offset: PhantomData,
-            };
+            /// In order to read a field, an instance of that field
+            /// must be given to have access to its mask and
+            /// offset. `Read` can be used as an argument to
+            /// `get_field` so one does not have to construct an
+            /// arbitrary one when doing a read.
+            pub const Read: Field = F::<
+                super::Width,
+                op!(((U1 << $width) - U1) << $offset),
+                $offset,
+                op!((U1 << $width) - U1)
+            >::checked::<U0>();
 
 
-            /// A field whose value is `$field_max`.
-            /// Passing it to `modify` will set that field to its max value in the
-            /// register. This is useful particularly in the case of single-bit wide
-            /// fields.
-            pub const Set: Field = F {
-                val: Bounded {
-                    val: ((1 << $width::USIZE) - 1) as Width,
-                    _lower: PhantomData,
-                    _upper: PhantomData,
-                },
-                _mask: PhantomData,
-                _offset: PhantomData,
-            };
+            /// A field whose value is `$field_max`. Passing it to
+            /// `modify` will set that field to its max value in the
+            /// register. This is useful particularly in the case of
+            /// single-bit wide fields.
+            pub const Set: Field = F::<
+                super::Width,
+                op!(((U1 << $width) - U1) << $offset),
+                $offset,
+                op!((U1 << $width) - U1)
+            >::checked::<op!((U1 << $width) - U1)>();
 
-            /// A field whose value is zero. Passing
-            /// it to `modify` will clear that field in the register.
+            /// A field whose value is zero. Passing it to `modify`
+            /// will clear that field in the register.
             pub const Clear: Field = Read;
 
             /// Constants mapping the enum-like field names to values.
@@ -166,37 +164,31 @@ macro_rules! fields {
             $(#[$outer])*
             pub type Field = F<super::Width, op!(((U1 << $width) - U1) << $offset), $offset, op!((U1 << $width) - U1)>;
 
-            /// In order to read a field, an instance
-            /// of that field must be given to have access to its mask and offset. `Read`
-            /// can be used as an argument to `get_field` so one does not have to
-            /// construct an arbitrary one when doing a read.
-            pub const Read: Field = F {
-                val: Bounded {
-                    val: 0,
-                    _lower: PhantomData,
-                    _upper: PhantomData,
-                },
-                _mask: PhantomData,
-                _offset: PhantomData,
-            };
+            /// In order to read a field, an instance of that field
+            /// must be given to have access to its mask and
+            /// offset. `Read` can be used as an argument to
+            /// `get_field` so one does not have to construct an
+            /// arbitrary one when doing a read.
+            pub const Read: Field = F::<
+                super::Width,
+                op!(((U1 << $width) - U1) << $offset),
+                $offset,
+                op!((U1 << $width) - U1)
+            >::checked::<U0>();
 
+            /// A field whose value is `$field_max`. Passing it to
+            /// `modify` will set that field to its max value in the
+            /// register. This is useful particularly in the case of
+            /// single-bit wide fields.
+            pub const Set: Field = F::<
+                super::Width,
+                op!(((U1 << $width) - U1) << $offset),
+                $offset,
+                op!((U1 << $width) - U1)
+            >::checked::<op!((U1 << $width) - U1)>();
 
-            /// A field whose value is `$field_max`.
-            /// Passing it to `modify` will set that field to its max value in the
-            /// register. This is useful particularly in the case of single-bit wide
-            /// fields.
-            pub const Set: Field = F {
-                val: Bounded {
-                    val: ((1 << $width::USIZE) - 1) as Width,
-                    _lower: PhantomData,
-                    _upper: PhantomData,
-                },
-                _mask: PhantomData,
-                _offset: PhantomData,
-            };
-
-            /// A field whose value is zero. Passing
-            /// it to `modify` will clear that field in the register.
+            /// A field whose value is zero. Passing it to `modify`
+            /// will clear that field in the register.
             pub const Clear: Field = Read;
         }
 
@@ -218,15 +210,12 @@ macro_rules! enums {
     } => {
         $(
             $(#[$outer])*
-            pub const $name: Field = F {
-                val: Bounded {
-                    val: $val::USIZE as Width,
-                    _lower: PhantomData,
-                    _upper: PhantomData,
-                },
-                _mask: PhantomData,
-                _offset: PhantomData,
-            };
+            pub const $name: Field = F::<
+                super::Width,
+                op!(((U1 << _FieldWidth) - U1) << _Offset),
+                _Offset,
+                op!((U1 << _FieldWidth) - U1)
+            >::checked::<$val>();
         )*
     }
 }
