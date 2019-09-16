@@ -229,7 +229,7 @@ macro_rules! mode {
 
         impl Register {
             /// `new` constructs a read-only register around the given
-            /// pointer.
+            /// value.
             pub fn new(init: Width) -> Self {
                 Register(init)
             }

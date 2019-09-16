@@ -16,17 +16,9 @@ There are two core pieces to ~registers~:
 ** I. The macro
 
 #+BEGIN_SRC rust
-#[macro_use] // register! leans on typenum's op! macro.
-extern crate typenum;
-#[macro_use]
-extern crate registers;
-
-use typenum::consts::U1;
-
-use registers::ReadWriteRegister;
-
 register! {
     Status,
+    u8,
     RW,
     Fields [
         On WIDTH(U1) OFFSET(U0),
@@ -45,9 +37,10 @@ The ~register!~ macro generates the code necessary for ergonomic
 register access and manipulation. The expected input for the macro is
 as follows:
 1. The register name.
-2. Its mode, either ~RO~ (read only), ~RW~ (read write), or ~WO~
+1. Its numeric type.
+1. Its mode, either ~RO~ (read only), ~RW~ (read write), or ~WO~
    (write only).
-3. The register's fields, beginning with ~Fields [~, and then a
+1. The register's fields, beginning with ~Fields [~, and then a
    closing ~]~ at the end.
 
 A field constists of its name, its width, and its offset within the
@@ -84,7 +77,7 @@ and constants.
 #+BEGIN_SRC rust
 fn main() {
     let mut reg = Status::Register::new(0);
-    reg.modify(Status::Dead::Field::Set);
+    reg.modify(Status::Dead::Set);
     assert_eq!(reg.read(), 2);
 }
 #+END_SRC
@@ -144,11 +137,16 @@ register! {
         AutoBaudInterrupt   WIDTH(U1) OFFSET(U15)
     ]
 }
+#+END_SRC
 
+You can then implement ~Deref~ and ~DerefMut~ for a type which holds
+onto the address of such a register block. This fills in the gaps for
+method lookup (during typechecking) so that you can ergonomically use
+this type to interact with the register block:
 
-/// This register lives at 0xDEADBEEF
+#+BEGIN_SRC rust
 #[repr(C)]
-struct UartBlock {
+pub struct UartBlock {
     rx: UartRX::Register,
     _padding1: [u32; 15],
     tx: UartTX::Register,
@@ -156,14 +154,42 @@ struct UartBlock {
     control1: UartControl1::Register,
 }
 
-fn main() {
-    let ub = 0xDEADBEEF_usize as *mut UartBlock;
+pub struct Regs {
+    addr: usize,
+}
 
-    unsafe {
-        (*ub)
-            .control1
-            .modify(UartControl1::RecvReadyInterrupt::Field::checked::<U1>());
+impl Deref for Regs {
+    type Target = UartBlock;
+
+    fn deref(&self) -> &UartBlock {
+        unsafe { &*(self.addr as *const UartBlock) }
     }
+}
+
+impl DerefMut for Regs {
+    fn deref_mut(&mut self) -> &mut UartBlock {
+        unsafe { &mut *(self.addr as *mut UartBlock) }
+    }
+}
+
+fn main() {
+    // A pretend register block.
+    let mut x = [0_u32; 33];
+
+    let mut regs = Regs {
+        // Some shenanigans to get at `x` as though it were a
+        // pointer. Normally you'd be given some address like
+        // `0xDEADBEEF` over which you'd instantiate a `Regs`.
+        addr: &mut x as *mut [u32; 33] as usize,
+    };
+
+    assert_eq!(regs.rx.read(), 0);
+
+    regs.control1
+        .modify(UartControl1::Enable::Set + UartControl1::RecvReadyInterrupt::Set);
+
+    // The first bit and the 10th bit should be set.
+    assert_eq!(regs.control1.read(), 0b_10_0000_0001);
 }
 #+END_SRC
 
