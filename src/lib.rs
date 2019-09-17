@@ -84,7 +84,6 @@
 //! # extern crate typenum;
 //! # #[macro_use]
 //! # extern crate registers;
-//! # use registers::ReadWriteRegister;
 //! # register! {
 //! #     Status,
 //! #     u8,
@@ -130,8 +129,6 @@
 //! extern crate typenum;
 //!
 //! use core::ops::{Deref, DerefMut};
-//!
-//! use registers::{ReadOnlyRegister, ReadWriteRegister};
 //!
 //! register! {
 //!     UartRX,

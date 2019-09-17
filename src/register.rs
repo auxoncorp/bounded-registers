@@ -6,121 +6,16 @@ use typenum::{IsGreater, IsGreaterOrEqual, IsLessOrEqual, Unsigned};
 
 use super::bounds::{Bounded, ReifyTo};
 
-pub trait ReadOnlyRegister {
-    type Width;
+pub struct ReadOnlyCopy<W, R>(pub W, pub PhantomData<R>);
 
-    /// `get_field` takes a field and sets the value of that
-    /// field to its value in the register.
-    fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
-        &self,
-        f: Field<Self::Width, M, O, U>,
-    ) -> Option<Field<Self::Width, M, O, U>>
-    where
-        U: IsGreater<U0, Output = True> + ReifyTo<Self::Width>,
-        M: ReifyTo<Self::Width>,
-        O: ReifyTo<Self::Width>,
-        U0: ReifyTo<Self::Width>;
-
-    /// `read` returns the current state of the whole register as a
-    /// `Self::Width`.
-    fn read(&self) -> Self::Width;
-
-    /// `extract` pulls the state of a register out into a wrapped
-    /// read-only register.
-    fn extract(&self) -> ReadOnlyCopy<Self::Width>;
-
-    /// `is_set` takes a field and returns true if that field's value
-    /// is equal to its upper bound or not. This is particularly
-    /// useful in single-bit fields.
-    fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(&self, f: Field<Self::Width, M, O, U>) -> bool
-    where
-        U: IsGreater<U0, Output = True>,
-        U: ReifyTo<Self::Width>,
-        M: ReifyTo<Self::Width>,
-        O: ReifyTo<Self::Width>;
-
-    /// `matches_any` returns whether or not any of the given fields
-    /// match those fields values inside the register.
-    fn matches_any<V: Positioned<Width = Self::Width>>(&self, val: V) -> bool;
-
-    /// `matches_all` returns whether or not all of the given fields
-    /// match those fields values inside the register.
-    fn matches_all<V: Positioned<Width = Self::Width>>(&self, val: V) -> bool;
-}
-
-pub trait WriteOnlyRegister {
-    type Width;
-
-    /// `modify` takes one or more fields, joined by `+`, and
-    /// sets those fields in the register, leaving the others
-    /// as they were.
-    fn modify<V: Positioned<Width = Self::Width>>(&mut self, val: V);
-
-    /// `write` sets the value of the whole register to the
-    /// given `Self::Width` value.
-    fn write(&mut self, val: Self::Width);
-}
-
-pub trait ReadWriteRegister {
-    type Width;
-
-    /// `get_field` takes a field and sets the value of that
-    /// field to its value in the register.
-    fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
-        &self,
-        f: Field<Self::Width, M, O, U>,
-    ) -> Option<Field<Self::Width, M, O, U>>
-    where
-        U: IsGreater<U0, Output = True>;
-
-    /// `read` returns the current state of the whole register as a
-    /// `Self::Width`.
-    fn read(&self) -> Self::Width;
-
-    /// `extract` pulls the state of a register out into a wrapped
-    /// read-only register.
-    fn extract(&self) -> ReadOnlyCopy<Self::Width>;
-
-    /// `is_set` takes a field and returns true if that field's value
-    /// is equal to its upper bound or not. This is particularly
-    /// useful in single-bit fields.
-    fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(&self, f: Field<Self::Width, M, O, U>) -> bool
-    where
-        U: IsGreater<U0, Output = True>,
-        U: ReifyTo<Self::Width>,
-        M: ReifyTo<Self::Width>,
-        O: ReifyTo<Self::Width>;
-
-    /// `matches_any` returns whether or not any of the given fields
-    /// match those fields values inside the register.
-    fn matches_any<V: Positioned<Width = Self::Width>>(&self, val: V) -> bool;
-
-    /// `matches_all` returns whether or not all of the given fields
-    /// match those fields values inside the register.
-    fn matches_all<V: Positioned<Width = Self::Width>>(&self, val: V) -> bool;
-
-    /// `modify` takes one or more fields, joined by `+`, and
-    /// sets those fields in the register, leaving the others
-    /// as they were.
-    fn modify<V: Positioned<Width = Self::Width>>(&mut self, val: V);
-
-    /// `write` sets the value of the whole register to the
-    /// given `Self::Width` value.
-    fn write(&mut self, val: Self::Width);
-}
-
-pub struct ReadOnlyCopy<W>(pub W);
-
-impl<W> ReadOnlyRegister for ReadOnlyCopy<W>
+impl<W, R> ReadOnlyCopy<W, R>
 where
     W: Copy + Clone + PartialOrd + BitAnd<W, Output = W> + Shr<W, Output = W> + Default,
 {
-    type Width = W;
-
-    fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+    pub fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
         &self,
-        f: Field<W, M, O, U>,
-    ) -> Option<Field<W, M, O, U>>
+        f: Field<W, M, O, U, R>,
+    ) -> Option<Field<W, M, O, U, R>>
     where
         U: IsGreater<U0, Output = True> + ReifyTo<W>,
         M: ReifyTo<W>,
@@ -130,15 +25,15 @@ where
         f.set((self.0 & M::reify()) >> O::reify())
     }
 
-    fn read(&self) -> W {
+    pub fn read(&self) -> W {
         self.0
     }
 
-    fn extract(&self) -> Self {
-        ReadOnlyCopy(self.0)
+    pub fn extract(&self) -> Self {
+        ReadOnlyCopy(self.0, PhantomData)
     }
 
-    fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(&self, _: Field<W, M, O, U>) -> bool
+    pub fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(&self, _: Field<W, M, O, U, R>) -> bool
     where
         U: IsGreater<U0, Output = True>,
         U: ReifyTo<W>,
@@ -148,13 +43,13 @@ where
         ((self.0 & M::reify()) >> O::reify()) == U::reify()
     }
 
-    fn matches_any<V: Positioned<Width = W>>(&self, val: V) -> bool {
+    pub fn matches_any<V: Positioned<Width = W>>(&self, val: V) -> bool {
         (val.in_position() & self.0) != W::default()
     }
 
     /// `matches_all` returns whether or not all of the given fields
     /// match those fields values inside the register.
-    fn matches_all<V: Positioned<Width = W>>(&self, val: V) -> bool {
+    pub fn matches_all<V: Positioned<Width = W>>(&self, val: V) -> bool {
         (val.in_position() & self.0) == val.in_position()
     }
 }
@@ -165,16 +60,17 @@ where
 /// It uses these type-level numbers so that the mask and offset can
 /// be constant.
 #[derive(Debug)]
-pub struct Field<W, M, O, U>
+pub struct Field<W, M, O, U, R>
 where
     U: IsGreater<U0, Output = True>,
 {
-    pub val: Bounded<W, U0, U>,
-    pub _mask: PhantomData<M>,
-    pub _offset: PhantomData<O>,
+    val: Bounded<W, U0, U>,
+    _mask: PhantomData<M>,
+    _offset: PhantomData<O>,
+    _reg_type: PhantomData<R>,
 }
 
-impl<W, M: Unsigned, O: Unsigned, U: Unsigned> Field<W, M, O, U>
+impl<W, M: Unsigned, O: Unsigned, U: Unsigned, R> Field<W, M, O, U, R>
 where
     U: IsGreater<U0, Output = True> + ReifyTo<W>,
     W: Copy + Clone + PartialOrd + BitAnd<W, Output = W> + Shr<W, Output = W> + Default,
@@ -188,6 +84,7 @@ where
             val: val,
             _offset: PhantomData,
             _mask: PhantomData,
+            _reg_type: PhantomData,
         })
     }
 
@@ -214,7 +111,7 @@ where
 
 macro_rules! checked {
     ($num_type:ty) => {
-        impl<M: Unsigned, O: Unsigned, U: Unsigned> Field<$num_type, M, O, U>
+        impl<M: Unsigned, O: Unsigned, U: Unsigned, R> Field<$num_type, M, O, U, R>
         where
             U: IsGreater<U0, Output = True>,
         {
@@ -230,6 +127,7 @@ macro_rules! checked {
                     val: Bounded::<$num_type, U0, U>::checked::<V>(),
                     _offset: PhantomData,
                     _mask: PhantomData,
+                    _reg_type: PhantomData,
                 }
             }
         }
@@ -242,13 +140,14 @@ checked!(u32);
 checked!(u64);
 checked!(usize);
 
-impl<W, M: Unsigned, O: Unsigned, U: Unsigned> PartialEq<Field<W, M, O, U>> for Field<W, M, O, U>
+impl<W, M: Unsigned, O: Unsigned, U: Unsigned, R> PartialEq<Field<W, M, O, U, R>>
+    for Field<W, M, O, U, R>
 where
     U: IsGreater<U0, Output = True> + ReifyTo<W>,
     W: Copy + Clone + PartialOrd + BitAnd<W, Output = W> + Shr<W, Output = W> + Default,
     U0: ReifyTo<W>,
 {
-    fn eq(&self, rhs: &Field<W, M, O, U>) -> bool {
+    fn eq(&self, rhs: &Field<W, M, O, U, R>) -> bool {
         self.val() == rhs.val()
     }
 }
@@ -268,7 +167,7 @@ pub trait Positioned {
     fn in_position(&self) -> Self::Width;
 }
 
-impl<W, M: Unsigned, O: Unsigned, U: Unsigned> Positioned for Field<W, M, O, U>
+impl<W, M: Unsigned, O: Unsigned, U: Unsigned, R> Positioned for Field<W, M, O, U, R>
 where
     U: IsGreater<U0, Output = True> + ReifyTo<W>,
     W: Copy
@@ -316,8 +215,17 @@ impl<W: Copy> Positioned for FieldDisj<W> {
 }
 
 // Add where both lhs and rhs are `Field`s.
-impl<W, LM: Unsigned, LO: Unsigned, LU: Unsigned, RM: Unsigned, RO: Unsigned, RU: Unsigned>
-    Add<Field<W, RM, RO, RU>> for Field<W, LM, LO, LU>
+impl<
+        W,
+        LM: Unsigned,
+        LO: Unsigned,
+        LU: Unsigned,
+        LR,
+        RM: Unsigned,
+        RO: Unsigned,
+        RU: Unsigned,
+        RR,
+    > Add<Field<W, RM, RO, RU, RR>> for Field<W, LM, LO, LU, LR>
 where
     LU: IsGreater<U0, Output = True> + ReifyTo<W>,
     RU: IsGreater<U0, Output = True> + ReifyTo<W>,
@@ -337,7 +245,7 @@ where
 {
     type Output = FieldDisj<W>;
 
-    fn add(self, rhs: Field<W, RM, RO, RU>) -> Self::Output {
+    fn add(self, rhs: Field<W, RM, RO, RU, RR>) -> Self::Output {
         FieldDisj {
             val: (self.val() << LO::reify()) | (rhs.val() << RO::reify()),
             mask: <LM as BitOr<RM>>::Output::reify(),
@@ -347,7 +255,7 @@ where
 
 // Add where the rhs is a `FieldDisj`. This is necessary because I do
 // not know which direction the compiler will associate `+`.
-impl<W, M: Unsigned, O: Unsigned, U: Unsigned> Add<FieldDisj<W>> for Field<W, M, O, U>
+impl<W, M: Unsigned, O: Unsigned, U: Unsigned, R> Add<FieldDisj<W>> for Field<W, M, O, U, R>
 where
     U: IsGreater<U0, Output = True> + ReifyTo<W>,
     W: Copy
@@ -374,7 +282,7 @@ where
 
 // Add where the lhs is a `FieldDisj`. This is necessary because I do
 // not know which direction the compiler will associate `+`.
-impl<W, M: Unsigned, O: Unsigned, U: Unsigned> Add<Field<W, M, O, U>> for FieldDisj<W>
+impl<W, M: Unsigned, O: Unsigned, U: Unsigned, R> Add<Field<W, M, O, U, R>> for FieldDisj<W>
 where
     U: IsGreater<U0, Output = True> + ReifyTo<W>,
     W: Copy
@@ -391,7 +299,7 @@ where
 {
     type Output = FieldDisj<W>;
 
-    fn add(self, rhs: Field<W, M, O, U>) -> Self::Output {
+    fn add(self, rhs: Field<W, M, O, U, R>) -> Self::Output {
         FieldDisj {
             val: self.val | (rhs.val() << O::reify()),
             mask: self.mask | M::reify(),

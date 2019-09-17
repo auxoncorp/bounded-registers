@@ -42,8 +42,6 @@
 ///
 /// use typenum::consts::U1;
 ///
-/// use registers::ReadWriteRegister;
-///
 /// register! {
 ///     Status,
 ///     u8,
@@ -114,31 +112,21 @@ macro_rules! fields {
             type _FieldWidth = $width;
 
             $(#[$outer])*
-            pub type Field = F<super::Width, op!(((U1 << $width) - U1) << $offset), $offset, op!((U1 << $width) - U1)>;
+            pub type Field = F<super::Width, op!(((U1 << $width) - U1) << $offset), $offset, op!((U1 << $width) - U1), Register>;
 
             /// In order to read a field, an instance of that field
             /// must be given to have access to its mask and
             /// offset. `Read` can be used as an argument to
             /// `get_field` so one does not have to construct an
             /// arbitrary one when doing a read.
-            pub const Read: Field = F::<
-                super::Width,
-                op!(((U1 << $width) - U1) << $offset),
-                $offset,
-                op!((U1 << $width) - U1)
-            >::checked::<U0>();
+            pub const Read: Field = Field::checked::<U0>();
 
 
             /// A field whose value is `$field_max`. Passing it to
             /// `modify` will set that field to its max value in the
             /// register. This is useful particularly in the case of
             /// single-bit wide fields.
-            pub const Set: Field = F::<
-                super::Width,
-                op!(((U1 << $width) - U1) << $offset),
-                $offset,
-                op!((U1 << $width) - U1)
-            >::checked::<op!((U1 << $width) - U1)>();
+            pub const Set: Field = Field::checked::<op!((U1 << $width) - U1)>();
 
             /// A field whose value is zero. Passing it to `modify`
             /// will clear that field in the register.
@@ -162,30 +150,20 @@ macro_rules! fields {
             use super::*;
 
             $(#[$outer])*
-            pub type Field = F<super::Width, op!(((U1 << $width) - U1) << $offset), $offset, op!((U1 << $width) - U1)>;
+            pub type Field = F<super::Width, op!(((U1 << $width) - U1) << $offset), $offset, op!((U1 << $width) - U1), Register>;
 
             /// In order to read a field, an instance of that field
             /// must be given to have access to its mask and
             /// offset. `Read` can be used as an argument to
             /// `get_field` so one does not have to construct an
             /// arbitrary one when doing a read.
-            pub const Read: Field = F::<
-                super::Width,
-                op!(((U1 << $width) - U1) << $offset),
-                $offset,
-                op!((U1 << $width) - U1)
-            >::checked::<U0>();
+            pub const Read: Field = Field::checked::<U0>();
 
             /// A field whose value is `$field_max`. Passing it to
             /// `modify` will set that field to its max value in the
             /// register. This is useful particularly in the case of
             /// single-bit wide fields.
-            pub const Set: Field = F::<
-                super::Width,
-                op!(((U1 << $width) - U1) << $offset),
-                $offset,
-                op!((U1 << $width) - U1)
-            >::checked::<op!((U1 << $width) - U1)>();
+            pub const Set: Field = Field::checked::<op!((U1 << $width) - U1)>();
 
             /// A field whose value is zero. Passing it to `modify`
             /// will clear that field in the register.
@@ -210,12 +188,7 @@ macro_rules! enums {
     } => {
         $(
             $(#[$outer])*
-            pub const $name: Field = F::<
-                super::Width,
-                op!(((U1 << _FieldWidth) - U1) << _Offset),
-                _Offset,
-                op!((U1 << _FieldWidth) - U1)
-            >::checked::<$val>();
+            pub const $name: Field = Field::checked::<$val>();
         )*
     }
 }
@@ -224,6 +197,7 @@ macro_rules! enums {
 #[doc(hidden)]
 macro_rules! mode {
     (RO) => {
+        #[derive(Debug)]
         #[repr(C)]
         pub struct Register(Width);
 
@@ -233,21 +207,18 @@ macro_rules! mode {
             pub fn new(init: Width) -> Self {
                 Register(init)
             }
-        }
 
-        impl $crate::ReadOnlyRegister for Register {
-            type Width = Width;
             /// `get_field` takes a field and sets the value of that
             /// field to its value in the register.
-            fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+            pub fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
                 &self,
-                f: F<Width, M, O, U>,
-            ) -> Option<F<Width, M, O, U>>
+                f: F<Width, M, O, U, Register>,
+            ) -> Option<F<Width, M, O, U, Register>>
             where
-                U: IsGreater<U0, Output = True> + ReifyTo<Self::Width>,
-                M: ReifyTo<Self::Width>,
-                O: ReifyTo<Self::Width>,
-                U0: ReifyTo<Self::Width>,
+                U: IsGreater<U0, Output = True> + ReifyTo<Width>,
+                M: ReifyTo<Width>,
+                O: ReifyTo<Width>,
+                U0: ReifyTo<Width>,
             {
                 f.set(
                     (unsafe { ptr::read_volatile(&self.0 as *const Width) } & M::reify())
@@ -256,25 +227,31 @@ macro_rules! mode {
             }
 
             /// `read` returns the current state of the register as a `Width`.
-            fn read(&self) -> Width {
+            pub fn read(&self) -> Width {
                 unsafe { ptr::read_volatile(&self.0 as *const Width) }
             }
 
             /// `extract` pulls the state of a register out into a wrapped
             /// read-only register.
-            fn extract(&self) -> $crate::ReadOnlyCopy<Width> {
-                $crate::ReadOnlyCopy(unsafe { ptr::read_volatile(&self.0 as *const Width) })
+            pub fn extract(&self) -> $crate::ReadOnlyCopy<Width, Register> {
+                $crate::ReadOnlyCopy(
+                    unsafe { ptr::read_volatile(&self.0 as *const Width) },
+                    PhantomData,
+                )
             }
 
             /// `is_set` takes a field and returns true if that field's value
             /// is equal to its upper bound or not. This is of particular use
             /// in single-bit fields.
-            fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(&self, f: F<Width, M, O, U>) -> bool
+            pub fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(
+                &self,
+                f: F<Width, M, O, U, Register>,
+            ) -> bool
             where
                 U: IsGreater<U0, Output = True>,
-                U: ReifyTo<Self::Width>,
-                M: ReifyTo<Self::Width>,
-                O: ReifyTo<Self::Width>,
+                U: ReifyTo<Width>,
+                M: ReifyTo<Width>,
+                O: ReifyTo<Width>,
             {
                 ((unsafe { ptr::read_volatile(&self.0 as *const Width) } & M::reify())
                     >> O::reify())
@@ -283,19 +260,20 @@ macro_rules! mode {
 
             /// `matches_any` returns whether or not any of the given fields
             /// match those fields values inside the register.
-            fn matches_any<V: Positioned<Width = Self::Width>>(&self, val: V) -> bool {
+            pub fn matches_any<V: Positioned<Width = Width>>(&self, val: V) -> bool {
                 (val.in_position() & unsafe { ptr::read_volatile(&self.0 as *const Width) }) != 0
             }
 
             /// `matches_all` returns whether or not all of the given fields
             /// match those fields values inside the register.
-            fn matches_all<V: Positioned<Width = Self::Width>>(&self, val: V) -> bool {
+            fn matches_all<V: Positioned<Width = Width>>(&self, val: V) -> bool {
                 (val.in_position() & unsafe { ptr::read_volatile(&self.0 as *const Width) })
                     == val.in_position()
             }
         }
     };
     (WO) => {
+        #[derive(Debug)]
         #[repr(C)]
         pub struct Register(Width);
 
@@ -305,15 +283,11 @@ macro_rules! mode {
             pub fn new(init: Width) -> Self {
                 Register(init)
             }
-        }
-
-        impl $crate::WriteOnlyRegister for Register {
-            type Width = Width;
 
             /// `modify` takes one or more fields, joined by `+`, and
             /// sets those fields in the register, leaving the others
             /// as they were.
-            fn modify<V: Positioned<Width = Self::Width>>(&mut self, val: V) {
+            pub fn modify<V: Positioned<Width = Width>>(&mut self, val: V) {
                 unsafe {
                     ptr::write_volatile(
                         &mut self.0 as *mut Width,
@@ -331,6 +305,7 @@ macro_rules! mode {
         }
     };
     (RW) => {
+        #[derive(Debug)]
         #[repr(C)]
         pub struct Register(Width);
 
@@ -340,22 +315,18 @@ macro_rules! mode {
             pub fn new(init: Width) -> Self {
                 Register(init)
             }
-        }
-
-        impl $crate::ReadWriteRegister for Register {
-            type Width = Width;
 
             /// `get_field` takes a field and sets the value of that
             /// field to its value in the register.
-            fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+            pub fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
                 &self,
-                f: F<Width, M, O, U>,
-            ) -> Option<F<Width, M, O, U>>
+                f: F<Width, M, O, U, Register>,
+            ) -> Option<F<Width, M, O, U, Register>>
             where
-                U: IsGreater<U0, Output = True> + ReifyTo<Self::Width>,
-                M: ReifyTo<Self::Width>,
-                O: ReifyTo<Self::Width>,
-                U0: ReifyTo<Self::Width>,
+                U: IsGreater<U0, Output = True> + ReifyTo<Width>,
+                M: ReifyTo<Width>,
+                O: ReifyTo<Width>,
+                U0: ReifyTo<Width>,
             {
                 f.set(
                     (unsafe { ptr::read_volatile(&self.0 as *const Width) } & M::reify())
@@ -364,25 +335,31 @@ macro_rules! mode {
             }
 
             /// `read` returns the current state of the register as a `Width`.
-            fn read(&self) -> Width {
+            pub fn read(&self) -> Width {
                 unsafe { ptr::read_volatile(&self.0 as *const Width) }
             }
 
             /// `extract` pulls the state of a register out into a wrapped
             /// read-only register.
-            fn extract(&self) -> $crate::ReadOnlyCopy<Width> {
-                $crate::ReadOnlyCopy(unsafe { ptr::read_volatile(&self.0 as *const Width) })
+            pub fn extract(&self) -> $crate::ReadOnlyCopy<Width, Register> {
+                $crate::ReadOnlyCopy(
+                    unsafe { ptr::read_volatile(&self.0 as *const Width) },
+                    PhantomData,
+                )
             }
 
             /// `is_set` takes a field and returns true if that field's value
             /// is equal to its upper bound or not. This is of particular use
             /// in single-bit fields.
-            fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(&self, f: F<Width, M, O, U>) -> bool
+            pub fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(
+                &self,
+                f: F<Width, M, O, U, Register>,
+            ) -> bool
             where
                 U: IsGreater<U0, Output = True>,
-                U: ReifyTo<Self::Width>,
-                M: ReifyTo<Self::Width>,
-                O: ReifyTo<Self::Width>,
+                U: ReifyTo<Width>,
+                M: ReifyTo<Width>,
+                O: ReifyTo<Width>,
             {
                 ((unsafe { ptr::read_volatile(&self.0 as *const Width) } & M::reify())
                     >> O::reify())
@@ -391,13 +368,13 @@ macro_rules! mode {
 
             /// `matches_any` returns whether or not any of the given fields
             /// match those fields values inside the register.
-            fn matches_any<V: Positioned<Width = Self::Width>>(&self, val: V) -> bool {
+            pub fn matches_any<V: Positioned<Width = Width>>(&self, val: V) -> bool {
                 (val.in_position() & unsafe { ptr::read_volatile(&self.0 as *const Width) }) != 0
             }
 
             /// `matches_all` returns whether or not all of the given fields
             /// match those fields values inside the register.
-            fn matches_all<V: Positioned<Width = Self::Width>>(&self, val: V) -> bool {
+            pub fn matches_all<V: Positioned<Width = Width>>(&self, val: V) -> bool {
                 (val.in_position() & unsafe { ptr::read_volatile(&self.0 as *const Width) })
                     == val.in_position()
             }
@@ -405,7 +382,7 @@ macro_rules! mode {
             /// `modify` takes one or more fields, joined by `+`, and
             /// sets those fields in the register, leaving the others
             /// as they were.
-            fn modify<V: Positioned<Width = Self::Width>>(&mut self, val: V) {
+            pub fn modify<V: Positioned<Width = Width>>(&mut self, val: V) {
                 unsafe {
                     ptr::write_volatile(
                         &mut self.0 as *mut Width,
@@ -417,7 +394,7 @@ macro_rules! mode {
 
             /// `write` sets the value of the whole register to the
             /// given `Width` value.
-            fn write(&mut self, val: Width) {
+            pub fn write(&mut self, val: Width) {
                 unsafe { ptr::write_volatile(&mut self.0 as *mut Width, val) };
             }
         }
@@ -427,8 +404,6 @@ macro_rules! mode {
 #[cfg(test)]
 mod test {
     use typenum::consts::U1;
-
-    use crate::{ReadOnlyRegister, ReadWriteRegister};
 
     register! {
         Status,
@@ -476,7 +451,7 @@ mod test {
 
     register! {
         RNG,
-        u16,
+        u8,
         RO,
         Fields [
             /// This field means the RNG is working on generating a
