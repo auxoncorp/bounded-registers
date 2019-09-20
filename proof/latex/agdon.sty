@@ -1,0 +1,75 @@
+%  A template file for working with agda-generated latex, made by dan
+%  pittman for Auxon.
+%  It originates from here:
+%    https://github.com/jgm/pandoc-templates/blob/master/default.latex
+
+% options for packages loaded elsewhere
+\PassOptionsToPackage{unicode=true}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+
+\usepackage{hyperref}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e}
+\usepackage[T1]{fontenc}
+\usepackage{textcomp}
+\usepackage{agda}
+\usepackage[utf8]{inputenc}
+
+\DeclareUnicodeCharacter{2115}{$\mathbb{N}$}
+\DeclareUnicodeCharacter{2192}{$\rightarrow$}
+\DeclareUnicodeCharacter{2264}{$\leq$}
+\DeclareUnicodeCharacter{00D7}{$\times$}
+\DeclareUnicodeCharacter{2200}{$\forall$}
+\DeclareUnicodeCharacter{2261}{$\equiv$}
+\DeclareUnicodeCharacter{2081}{$\_1$}
+\DeclareUnicodeCharacter{2082}{$\_2$}
+\DeclareUnicodeCharacter{2237}{::}
+\DeclareUnicodeCharacter{2265}{$\geq$}
+\DeclareUnicodeCharacter{27E8}{$\langle$}
+\DeclareUnicodeCharacter{27E9}{$\rangle$}
+\DeclareUnicodeCharacter{03BB}{$\lambda$}
+\DeclareUnicodeCharacter{220E}{$\blacksquare$}
+\DeclareUnicodeCharacter{230A}{$\lfloor$}
+\DeclareUnicodeCharacter{230B}{$\rfloor$}
+
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+
+% use microtype if available
+\IfFileExists{microtype.sty}{%
+\usepackage[]{microtype}
+\UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+
+\IfFileExists{parskip.sty}{%
+\usepackage{parskip}
+}{% else
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{6pt plus 2pt minus 1pt}
+}
+
+% don't use monospace font for urls
+\urlstyle{same}
+
+% prevent overfull lines
+\setlength{\emergencystretch}{3em}
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{0}
+
+% Redefines (sub)paragraphs to behave more like sections
+\ifx\paragraph\undefined\else
+\let\oldparagraph\paragraph
+\renewcommand{\paragraph}[1]{\oldparagraph{#1}\mbox{}}
+\fi
+\ifx\subparagraph\undefined\else
+\let\oldsubparagraph\subparagraph
+\renewcommand{\subparagraph}[1]{\oldsubparagraph{#1}\mbox{}}
+\fi
+
+% set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
