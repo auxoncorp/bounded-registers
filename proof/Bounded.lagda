@@ -1,13 +1,13 @@
-\input{../../resources/temp.tex}
-
-\hypersetup{
-            pdftitle={Specification and (nearly complete) Proofs for Registers with Bounded Types}
-            pdfborder={0 0 0},
-            breaklinks=true}
+\documentclass{article}
 
 \usepackage{agda}
 \usepackage{agdon}
 \usepackage{bytefield}
+
+\hypersetup{
+            pdftitle={Specification and (nearly complete) Proofs for Registers with Bounded Types},
+            pdfborder={0 0 0},
+            breaklinks=true}
 
 \title{Specification and (nearly complete) Proofs for Registers with Bounded Types}
 
