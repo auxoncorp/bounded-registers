@@ -14,9 +14,7 @@ $ cd registers && cargo install
 
 ** Usage
 
-There are two core pieces to ~bounded-registers~:
-
-*** I. The macro
+*** The macro
 
 #+BEGIN_SRC rust
 register! {
@@ -73,7 +71,7 @@ and constants.
 - ~$register_name::$field_name::$enum_kvs~: constants mapping the enum
   like field names to values.
 
-*** II. Interacting with registers
+*** Interacting with registers
 
 **** Through a constructor
 
@@ -275,3 +273,8 @@ then reading from and writing to those fields is either checked at
 compile time, through the ~checked~ function, or is expected to
 /carry/ a proof, which uses the aforementioned bound to construct a
 value at runtime which is known to not contravene it.
+
+** License
+
+~bounded-registers~ is licensed under the MIT License (MIT) unless
+otherwise noted. Please see [[./LICENSE][LICENSE]] for more details.
