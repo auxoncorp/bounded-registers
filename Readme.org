@@ -1,20 +1,22 @@
 #+TITLE:  Bounded Registers
 
+** Overview
+
 A high-assurance memory-mapped register code generation and
 interaction library.
 
-* Install
+** Getting Started
 
 #+BEGIN_SRC shell
 $ git clone git@github.com:auxoncorp/registers.git
 $ cd registers && cargo install
 #+END_SRC
 
-* Use
+** Usage
 
 There are two core pieces to ~bounded-registers~:
 
-** I. The macro
+*** I. The macro
 
 #+BEGIN_SRC rust
 register! {
@@ -71,9 +73,9 @@ and constants.
 - ~$register_name::$field_name::$enum_kvs~: constants mapping the enum
   like field names to values.
 
-** II. Interacting with registers
+*** II. Interacting with registers
 
-*** Through a constructor
+**** Through a constructor
 
 #+BEGIN_SRC rust
 fn main() {
@@ -87,7 +89,7 @@ In this example, we initialize a register with the value ~0~ and then
 set the ~Dead~ bit—the second field—which should produce the value ~2~
 when interpreting this word-sized register as a ~u32~.
 
-*** Through a register block
+**** Through a register block
 
 Here we take a known address, one we may find in a developer's manual,
 and interpret that address as a register block. We can then
@@ -194,7 +196,7 @@ fn main() {
 }
 #+END_SRC
 
-* The Register API
+*** The Register API
 
 The register API code is generated with docs, but you'll have to build
 the rustdoc documentation for your library that uses
@@ -264,7 +266,7 @@ extrapolated it here:
   }
 #+END_SRC
 
-* Theory
+** Theory
 
 ~bounded-registers~ employs values—specifically numbers—at the type-level in
 order to get compile time assertions on interactions with a
