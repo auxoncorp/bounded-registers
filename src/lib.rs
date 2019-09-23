@@ -1,6 +1,7 @@
-//! # Registers
+//! # Bounded Registers
 //!
-//! A high-assurance register code generation and interaction library.
+//! A high-assurance memory-mapped register code generation and
+//! interaction library.
 //!
 //! ## Install
 //!
@@ -11,13 +12,13 @@
 //!
 //! ## Use
 //!
-//! There are two core pieces to `registers`:
+//! There are two core pieces to `bounded-registers`:
 //!
 //! ### I. The macro
 //!
 //! ```
 //! # #[macro_use]
-//! # extern crate registers;
+//! # extern crate bounded_registers;
 //! # #[macro_use]
 //! # extern crate typenum;
 //! register! {
@@ -83,7 +84,7 @@
 //! # #[macro_use] // register! leans on typenum's op! macro.
 //! # extern crate typenum;
 //! # #[macro_use]
-//! # extern crate registers;
+//! # extern crate bounded_registers;
 //! # register! {
 //! #     Status,
 //! #     u8,
@@ -124,7 +125,7 @@
 //!
 //! ```
 //! #[macro_use]
-//! extern crate registers;
+//! extern crate bounded_registers;
 //! #[macro_use]
 //! extern crate typenum;
 //!
@@ -222,15 +223,94 @@
 //! }
 //! ```
 //!
+//! # The Register API
+//!
+//! The register API code is generated with docs, but you'll have to build
+//! the rustdoc documentation for your library that uses
+//! `bounded-registers` to be able to see it. For convenience, I've
+//! extrapolated it here:
+//!
+//! ```
+//! # extern crate bounded_registers;
+//! # extern crate typenum;
+//! # use bounded_registers::*;
+//! # use bounded_registers::bounds::*;
+//! # use typenum::*;
+//! # type Width = u8;
+//! # struct Register;
+//! # trait R {
+//! /// `new` constructs a read-write register around the
+//! /// given pointer.
+//! fn new(init: Width) -> Self;
+//!
+//! /// `get_field` takes a field and sets the value of that
+//! /// field to its value in the register.
+//! fn get_field<M: Unsigned, O: Unsigned, U: Unsigned>(
+//!     &self,
+//!     f: Field<Width, M, O, U, Register>,
+//! ) -> Option<Field<Width, M, O, U, Register>>
+//! where
+//!     U: IsGreater<U0, Output = True> + ReifyTo<Width>,
+//!     M: ReifyTo<Width>,
+//!     O: ReifyTo<Width>,
+//!     U0: ReifyTo<Width>;
+//!
+//! /// `read` returns the current state of the register as a `Width`.
+//! fn read(&self) -> Width;
+//!
+//! /// `extract` pulls the state of a register out into a wrapped
+//! /// read-only register.
+//! fn extract(&self) -> ReadOnlyCopy<Width, Register>;
+//!
+//! /// `is_set` takes a field and returns true if that field's value
+//! /// is equal to its upper bound or not. This is of particular use
+//! /// in single-bit fields.
+//! fn is_set<M: Unsigned, O: Unsigned, U: Unsigned>(
+//!     &self,
+//!     f: Field<Width, M, O, U, Register>,
+//! ) -> bool
+//! where
+//!     U: IsGreater<U0, Output = True>,
+//!     U: ReifyTo<Width>,
+//!     M: ReifyTo<Width>,
+//!     O: ReifyTo<Width>;
+//!
+//! // `Positioned` is a special trait that all fields implement, as
+//! // well as a type used as an accumulator when reading from or
+//! // writing to multiple fields. To use these functions with
+//! // multiple fields, join them together with `+`. An `Add`
+//! // implementation for fields has been provided for this purpose.
+//!
+//! /// `matches_any` returns whether or not any of the given fields
+//! /// match those fields values inside the register.
+//! fn matches_any<V: Positioned<Width = Width>>(&self, val: V) -> bool;
+//!
+//! /// `matches_all` returns whether or not all of the given fields
+//! /// match those fields values inside the register.
+//! fn matches_all<V: Positioned<Width = Width>>(&self, val: V) -> bool;
+//!
+//! /// `modify` takes one or more fields, joined by `+`, and
+//! /// sets those fields in the register, leaving the others
+//! /// as they were.
+//! fn modify<V: Positioned<Width = Width>>(&mut self, val: V);
+//!
+//! /// `write` sets the value of the whole register to the
+//! /// given `Width` value.
+//! fn write(&mut self, val: Width);
+//! # }
+//! # fn main() {}
+//! ```
+//!
 //! ## Theory
 //!
-//! `registers` employs values—specifically numbers—at the type-level in
-//! order to get compile time assertions on interactions with a
-//! register. Each field's width is used to determine a maximum value, and
-//! then reading from and writing to those fields is either checked at
-//! compile time, through the `checked` function, or is expected to
-//! _carry_ a proof, which uses the aforementioned bound to construct a
-//! value at runtime which is known to not contravene it.
+//! `bounded-registers` employs values—specifically numbers—at the
+//! type-level in order to get compile time assertions on interactions
+//! with a register. Each field's width is used to determine a maximum
+//! value, and then reading from and writing to those fields is either
+//! checked at compile time, through the `checked` function, or is
+//! expected to _carry_ a proof, which uses the aforementioned bound
+//! to construct a value at runtime which is known to not contravene
+//! it.
 #![no_std]
 #![feature(const_fn)]
 

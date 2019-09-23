@@ -38,7 +38,7 @@
 /// #[macro_use]
 /// extern crate typenum;
 /// #[macro_use]
-/// extern crate registers;
+/// extern crate bounded_registers;
 ///
 /// use typenum::consts::U1;
 ///
@@ -67,6 +67,7 @@
 #[macro_export]
 macro_rules! register {
     {
+        $(#[$attrs:meta])*
         $name:ident,
         $width:ty,
         $mode:ident,
@@ -85,6 +86,10 @@ macro_rules! register {
             use core::ptr;
 
             type Width = $width;
+
+            #[repr(C)]
+            $(#[$attrs])*
+            pub struct Register(Width);
 
             mode!($mode);
 
@@ -197,10 +202,6 @@ macro_rules! enums {
 #[doc(hidden)]
 macro_rules! mode {
     (RO) => {
-        #[derive(Debug)]
-        #[repr(C)]
-        pub struct Register(Width);
-
         impl Register {
             /// `new` constructs a read-only register around the given
             /// value.
@@ -273,10 +274,6 @@ macro_rules! mode {
         }
     };
     (WO) => {
-        #[derive(Debug)]
-        #[repr(C)]
-        pub struct Register(Width);
-
         impl Register {
             /// `new` constructs a write-only register around the
             /// given pointer.
@@ -305,10 +302,6 @@ macro_rules! mode {
         }
     };
     (RW) => {
-        #[derive(Debug)]
-        #[repr(C)]
-        pub struct Register(Width);
-
         impl Register {
             /// `new` constructs a read-write register around the
             /// given pointer.
@@ -406,6 +399,8 @@ mod test {
     use typenum::consts::U1;
 
     register! {
+        /// The status register
+        #[derive(Debug)]
         Status,
         u8,
         RW,
@@ -450,6 +445,8 @@ mod test {
     }
 
     register! {
+        ///  A random number generator
+        #[derive(Debug)]
         RNG,
         u8,
         RO,

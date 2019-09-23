@@ -1,5 +1,5 @@
 [package]
-name = "registers"
+name = "bounded-registers"
 version = "0.1.0"
 authors = ["Dan Pittman <dan@auxon.io>"]
 edition = "2018"
