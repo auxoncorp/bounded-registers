@@ -1,4 +1,4 @@
-# Bounded Registers
+# Bounded Registers - An Amazzing Project
 
 ## Overview
 
