@@ -163,13 +163,13 @@ impl Deref for Regs {
     type Target = UartBlock;
 
     fn deref(&self) -> &UartBlock {
-        unsafe { &#(self.addr as #const UartBlock) }
+        unsafe { &*(self.addr as *const UartBlock) }
     }
 }
 
 impl DerefMut for Regs {
     fn deref_mut(&mut self) -> &mut UartBlock {
-        unsafe { &mut #(self.addr as #mut UartBlock) }
+        unsafe { &mut *(self.addr as *mut UartBlock) }
     }
 }
 
@@ -181,7 +181,7 @@ fn main() {
         // Some shenanigans to get at `x` as though it were a
         // pointer. Normally you'd be given some address like
         // `0xDEADBEEF` over which you'd instantiate a `Regs`.
-        addr: &mut x as #mut [u32; 33] as usize,
+        addr: &mut x as *mut [u32; 33] as usize,
     };
 
     assert_eq!(regs.rx.read(), 0);
