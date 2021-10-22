@@ -63,18 +63,18 @@
 //! `$register_name::$field_name::Field`, as well as a few helpful aliases
 //! and constants.
 //!
-//! * `$register_name::$field_name::Read`: In order to read a field, an
-//!   instance of that field must be given to have access to its mask and
-//!   offset. `Read` can be used as an argument to `get_field` so one does
-//!   not have to construct an arbitrary one when doing a read.
-//! * `$register_name::$field_name::Clear`: A field whose value is
-//!   zero. Passing it to `modify` will clear that field in the register.
-//! * `$register_name::$field_name::Set`: A field whose value is
-//!   `$field_max`.  Passing it to `modify` will set that field to its max
-//!   value in the register. This is useful particularly in the case of
-//!   single-bit wide fields.
-//! * `$register_name::$field_name::$enum_kvs`: constants mapping the enum
-//!   like field names to values.
+//! * `$register_name::$field_name::Read`: In order to read a field, an instance
+//!   of that field must be given to have access to its mask and offset. `Read`
+//!   can be used as an argument to `get_field` so one does not have to
+//!   construct an arbitrary one when doing a read.
+//! * `$register_name::$field_name::Clear`: A field whose value is zero. Passing
+//!   it to `modify` will clear that field in the register.
+//! * `$register_name::$field_name::Set`: A field whose value is `$field_max`.
+//!   Passing it to `modify` will set that field to its max value in the
+//!   register. This is useful particularly in the case of single-bit wide
+//!   fields.
+//! * `$register_name::$field_name::$enum_kvs`: constants mapping the enum like
+//!   field names to values.
 //!
 //! ### II. Interacting with registers
 //!
@@ -312,7 +312,7 @@
 //! to construct a value at runtime which is known to not contravene
 //! it.
 #![no_std]
-#![feature(const_fn)]
+#![feature(const_fn_trait_bound)]
 
 #[allow(unused)]
 #[macro_use]
