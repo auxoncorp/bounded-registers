@@ -260,7 +260,7 @@ extrapolated it here:
 
       /// `write` sets the value of the whole register to the
       /// given `Width` value.
-      pub fn write(&mut self, val: Width);
+      pub unsafe fn write(&mut self, val: Width);
   }
 ```
 

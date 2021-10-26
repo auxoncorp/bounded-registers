@@ -296,7 +296,7 @@
 //!
 //! /// `write` sets the value of the whole register to the
 //! /// given `Width` value.
-//! fn write(&mut self, val: Width);
+//! unsafe fn write(&mut self, val: Width);
 //! # }
 //! # fn main() {}
 //! ```
@@ -314,7 +314,7 @@
 #![no_std]
 #![feature(const_fn_trait_bound)]
 
-#[allow(unused)]
+#[allow(unused_imports)]
 #[macro_use]
 extern crate typenum;
 

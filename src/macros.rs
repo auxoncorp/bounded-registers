@@ -296,8 +296,12 @@ macro_rules! mode {
 
             /// `write` sets the value of the whole register to the
             /// given `Width` value.
-            pub fn write(&mut self, val: Width) {
-                unsafe { ptr::write_volatile(&mut self.0 as *mut Width, val) };
+            ///
+            /// # Safety
+            ///
+            /// Bypasses all assurances by writing a raw value directly to the register.
+            pub unsafe fn write(&mut self, val: Width) {
+                ptr::write_volatile(&mut self.0 as *mut Width, val);
             }
         }
     };
@@ -387,8 +391,12 @@ macro_rules! mode {
 
             /// `write` sets the value of the whole register to the
             /// given `Width` value.
-            pub fn write(&mut self, val: Width) {
-                unsafe { ptr::write_volatile(&mut self.0 as *mut Width, val) };
+            ///
+            /// # Safety
+            ///
+            /// Bypasses all assurances by writing a raw value directly to the register.
+            pub unsafe fn write(&mut self, val: Width) {
+                ptr::write_volatile(&mut self.0 as *mut Width, val);
             }
         }
     };
