@@ -25,7 +25,7 @@ where
     pub fn new(val: N) -> Option<Self> {
         if val >= L::reify() && val <= U::reify() {
             Some(Bounded {
-                val: val,
+                val,
                 _lower: PhantomData,
                 _upper: PhantomData,
             })

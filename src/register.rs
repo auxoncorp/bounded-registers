@@ -81,7 +81,7 @@ where
     /// its upper bound, otherwise it returns `None`.
     pub fn new(val: W) -> Option<Self> {
         Bounded::new(val).map(|val| Self {
-            val: val,
+            val,
             _offset: PhantomData,
             _mask: PhantomData,
             _reg_type: PhantomData,
@@ -308,5 +308,8 @@ where
 }
 
 pub trait Pointer {
+    /// # Safety
+    ///
+    /// Must point to valid memory and be non-NULL.
     unsafe fn ptr(&self) -> *mut usize;
 }
