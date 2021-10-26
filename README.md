@@ -8,8 +8,8 @@ interaction library.
 ## Getting Started
 
 ```shell
-$ git clone git@github.com:auxoncorp/registers.git
-$ cd registers && cargo install
+$ git clone git@github.com:auxoncorp/bounded-registers.git
+$ cd bounded-registers && cargo +nightly build
 ```
 
 ## Usage
